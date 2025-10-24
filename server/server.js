@@ -1,6 +1,8 @@
 // import required packages
 const express = require("express");
 const mysql = require("mysql2/promise");
+const fs = require("fs");
+const path = require("path");
 
 // create express app
 const app = express();
@@ -9,11 +11,12 @@ app.use(express.json());
 
 // database connection configuration
 const config = {
-  host: "localhost",    // database server location
-  port: 3307,           // database port
-  user: "user",         // database username
+  host: "localhost", // database server location
+  port: 3307, // database port
+  user: "user", // database username
   password: "password", // database password
-  database: "db",       // database name
+  database: "db", // database name
+  multipleStatements: true,
 };
 
 // endpoint to test if database connection works
@@ -59,6 +62,26 @@ app.post("/api/setup", async (req, res) => {
   }
 });
 
+// endpoint to create the users table in database
+app.post("/api/setup-test", async (req, res) => {
+  try {
+    // location of the schema.sql file
+    const schemaFilePath = path.join(__dirname, "db", "schema.sql");
+    // read the SQL schema file
+    const schemaSql = await fs.readFileSync(schemaFilePath, "utf8");
+    // connect to database
+    const connection = await mysql.createConnection(config);
+    await connection.query(schemaSql);
+    // close connection
+    await connection.end();
+    // send success response
+    res.json({ message: "All tables created!" });
+  } catch (error) {
+    // if table creation fails, send error
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // endpoint to add a new user to database
 app.post("/api/users", async (req, res) => {
   try {
@@ -71,7 +94,7 @@ app.post("/api/users", async (req, res) => {
     // ? placeholders prevent SQL injection attacks
     const [result] = await connection.execute(
       "INSERT INTO users (email, password) VALUES (?, ?)",
-      [email, password]  // values to replace the ? placeholders
+      [email, password] // values to replace the ? placeholders
     );
 
     // close connection
@@ -112,12 +135,12 @@ app.delete("/api/users/:id", async (req, res) => {
     // delete user with matching ID
     const [result] = await connection.execute(
       "DELETE FROM users WHERE id = ?",
-      [id]  // user ID to delete
+      [id] // user ID to delete
     );
 
     // close connection
     await connection.end();
-    
+
     // check if any rows were actually deleted
     if (result.affectedRows === 0) {
       // no user found with that ID
