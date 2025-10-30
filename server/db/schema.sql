@@ -96,28 +96,27 @@ INSERT INTO DinningHalls (HallName) VALUES
 
 -- Insert sample food items with nutrition facts.
 -- Columns: HallID, Calories, Fat (g), Protein (g), Carbs (g), ServingSize
-INSERT INTO FoodCatalogue (HallID, Calories, Fat, Protein, Carbs, ServingSize) VALUES
-(1, 103, 0, 2, 23, '1 Cup'),         
-(1, 20, 2, 1, 0, '1 Each'),         
-(1, 50, 4, 4, 0, '1 Oz'),       
-(1, 144, 10, 11, 0, '3 Oz'),  
-(2, 279, 13, 5, 35, '1 Biscuit'), 
-(2, 422, 13, 5, 71, '4 Sticks'),
-(1, 157, 8, 3, 21, '4 Oz'),
-(3, 270, 10, 30, 13, '3 Oz'),
-(3, 616, 39, 35, 29, '1 Burger'),
-(3, 431, 32, 17, 25, '1 Hot Dog'),
-(3, 579, 33, 27, 45, '1 Sandwich'),
-(3, 420, 13, 18, 59, '1 Burger'),
-(1, 160, 8, 2, 23, '1 Each'),
-(1, 9, 0, 0, 2, '1 Oz'),
-(3, 1261, 89, 103, 3, '12 Oz'),
-(3, 586, 14, 9, 106, '14 Oz'),
-(3, 538, 26, 29, 46, '5 Stks+Sce'),
-(3, 412, 22, 20, 33, '4 Each'),
-(1, 207, 8, 10, 25, '1/12 Pizza'),
-(1, 300, 0, 6, 68, '1 Cup');
-
+INSERT INTO FoodCatalogue (HallID, FoodName, Calories, Fat, Protein, Carbs, ServingSize) VALUES
+(1, 'Crispy Rice Cereal', 103, 0, 2, 23, '1 Cup'),
+(1, 'Bacon, Gluten-Free (slice)', 20, 2, 1, 0, '1 Each'),
+(1, 'Chicken Sausage Link', 50, 4, 4, 0, '1 Oz'),
+(1, 'Scrambled Eggs', 144, 10, 11, 0, '3 Oz'),
+(2, 'Buttermilk Biscuit', 279, 13, 5, 35, '1 Biscuit'),
+(2, 'French Toast Sticks', 422, 13, 5, 71, '4 Sticks'),
+(1, 'Hash Browns', 157, 8, 3, 21, '4 Oz'),
+(3, 'London Broil Steak', 270, 10, 30, 13, '3 Oz'),
+(3, 'Bacon Cheeseburger', 616, 39, 35, 29, '1 Burger'),
+(3, 'Quarter Pound Hot Dog', 431, 32, 17, 25, '1 Hot Dog'),
+(3, 'Fried Chicken Sandwich', 579, 33, 27, 45, '1 Sandwich'),
+(3, 'Black Bean Burger w/ Cheese', 420, 13, 18, 59, '1 Burger'),
+(1, 'Chocolate Chip Cookie', 160, 8, 2, 23, '1 Each'),
+(1, 'Fresh Strawberries', 9, 0, 0, 2, '1 Oz'),
+(3, 'Grilled Ribeye Steak (12 oz)', 1261, 89, 103, 3, '12 Oz'),
+(3, 'Steak Fries (Full Basket)', 586, 14, 9, 106, '14 Oz'),
+(3, 'Mozzarella Sticks (5 sticks + sauce)', 538, 26, 29, 46, '5 Stks+Sce'),
+(3, 'Fried Potato Skins', 412, 22, 20, 33, '4 Each'),
+(1, 'Cheese Pizza Slice', 207, 8, 10, 25, '1/12 Pizza'),
+(1, 'Oatmeal', 300, 0, 6, 68, '1 Cup');
 
 
 -- Insert sample user goals
