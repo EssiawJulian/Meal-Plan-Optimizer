@@ -2,7 +2,9 @@ CREATE TABLE Users (
     UserID INT AUTO_INCREMENT PRIMARY KEY,
     FirstName VARCHAR(50) NOT NULL,
     LastName VARCHAR(50) NOT NULL,
-    Email VARCHAR(100)
+    Email VARCHAR(100),
+    PasswordHash VARCHAR(255) NOT NULL,
+    UNIQUE (Email)
 );
 
 CREATE TABLE Questions (
@@ -11,21 +13,49 @@ CREATE TABLE Questions (
     UserMessage VARCHAR(500) NOT NULL,
     MessageReply VARCHAR(500),
     MessageStatus BOOLEAN NOT NULL DEFAULT FALSE,
-    FOREIGN KEY (UserID) REFERENCES Users(UserID)
+    FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE
 );
 
 CREATE TABLE Nutritionist (
     NutritionistID INT AUTO_INCREMENT PRIMARY KEY,
     FirstName VARCHAR(50) NOT NULL,
     LastName VARCHAR(50) NOT NULL,
-    Email VARCHAR(50)
+    Email VARCHAR(50),
+    PasswordHash VARCHAR(255) NOT NULL,
+    UNIQUE (Email)
 );
 
 CREATE TABLE Admin (
     AdminID INT AUTO_INCREMENT PRIMARY KEY,
     FirstName VARCHAR(50) NOT NULL,
     LastName VARCHAR(50) NOT NULL,
-    Email VARCHAR(50) NOT NULL
+    Email VARCHAR(50) NOT NULL,
+    PasswordHash VARCHAR(255) NOT NULL,
+    UNIQUE (Email)
+);
+
+CREATE TABLE UserSessions (
+    SessionID CHAR(64) PRIMARY KEY,
+    UserID INT NOT NULL,
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ExpiresAt TIMESTAMP NULL,
+    FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE
+);
+
+CREATE TABLE NutritionistSessions (
+    SessionID CHAR(64) PRIMARY KEY,
+    NutritionistID INT NOT NULL,
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ExpiresAt TIMESTAMP NULL,
+    FOREIGN KEY (NutritionistID) REFERENCES Nutritionist(NutritionistID) ON DELETE CASCADE
+);
+
+CREATE TABLE AdminSessions (
+    SessionID CHAR(64) PRIMARY KEY,
+    AdminID INT NOT NULL,
+    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ExpiresAt TIMESTAMP NULL,
+    FOREIGN KEY (AdminID) REFERENCES Admin(AdminID) ON DELETE CASCADE
 );
 
 CREATE TABLE DinningHalls (
@@ -42,7 +72,7 @@ CREATE TABLE FoodCatalogue (
     Protein INT UNSIGNED NOT NULL,
     Carbs INT UNSIGNED NOT NULL,
     ServingSize VARCHAR(50) NOT NULL,
-    FOREIGN KEY (HAllID) REFERENCES DinningHalls(HallID)
+    FOREIGN KEY (HallID) REFERENCES DinningHalls(HallID)
 );
 
 CREATE TABLE UserGoals (
@@ -51,7 +81,7 @@ CREATE TABLE UserGoals (
     Fat INT UNSIGNED NOT NULL,
     Protein INT UNSIGNED NOT NULL,
     Carbs INT UNSIGNED NOT NULL,
-    FOREIGN KEY (UserID) REFERENCES Users(UserID)
+    FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE
 );
 
 CREATE TABLE Meals (
@@ -59,18 +89,18 @@ CREATE TABLE Meals (
     FoodID INT NOT NULL,
     UserID INT NOT NULL,
     MealType VARCHAR(50) NOT NULL,
-    FOREIGN KEY (FoodID) REFERENCES FoodCatalogue(FoodID),
-    FOREIGN KEY (UserID) REFERENCES Users(UserID)
+    FOREIGN KEY (FoodID) REFERENCES FoodCatalogue(FoodID) ON DELETE CASCADE,
+    FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE
 );
 
 
 -- Insert sample users
-INSERT INTO Users (FirstName, LastName, Email) VALUES
-('Alice', 'Smith', 'alice.smith@example.com'),
-('Bob', 'Johnson', 'bob.johnson@example.com'),
-('Charlie', 'Lee', 'charlie.lee@example.com'),
-('Dana', 'White', 'dana.white@example.com'),
-('Evan', 'Brown', 'evan.brown@example.com');
+INSERT INTO Users (FirstName, LastName, Email, PasswordHash) VALUES
+('Alice', 'Smith', 'alice.smith@example.com', 'notrealpassword'),
+('Bob', 'Johnson', 'bob.johnson@example.com', 'notrealpassword'),
+('Charlie', 'Lee', 'charlie.lee@example.com', 'notrealpassword'),
+('Dana', 'White', 'dana.white@example.com', 'notrealpassword'),
+('Evan', 'Brown', 'evan.brown@example.com', 'notrealpassword');
 
 -- Insert sample questions
 INSERT INTO Questions (UserID, UserMessage, MessageReply, MessageStatus) VALUES
@@ -79,14 +109,13 @@ INSERT INTO Questions (UserID, UserMessage, MessageReply, MessageStatus) VALUES
 (2, 'Do dining halls offer vegan options?', NULL, FALSE);
 
 -- Insert sample nutritionists 
-INSERT INTO Nutritionist (FirstName, LastName, Email) VALUES
-('Nora', 'Green', 'ngreen@vt.edu'),
-('Owen', 'Black', 'oblack@vt.edu');
+INSERT INTO Nutritionist (FirstName, LastName, Email, PasswordHash) VALUES
+('Owen', 'Black', 'oblack@vt.edu', 'notrealpassword');
 
 -- Insert sample admin users
-INSERT INTO Admin (FirstName, LastName, Email) VALUES
-('Admin', 'One', 'admin1@vt.edu'),
-('Admin', 'Two', 'admin2@vt.edu');
+INSERT INTO Admin (FirstName, LastName, Email, PasswordHash) VALUES
+('Admin', 'One', 'admin1@vt.edu', 'notrealpassword'),
+('Admin', 'Two', 'admin2@vt.edu', 'notrealpassword');
 
 -- Insert dining halls
 INSERT INTO DinningHalls (HallName) VALUES
