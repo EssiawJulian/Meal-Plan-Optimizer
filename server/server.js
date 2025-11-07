@@ -38,7 +38,9 @@ app.get("/api/test-db", async (req, res) => {
     await connection.end();
     res.json({ message: "Database connected successfully!" });
   } catch (error) {
-    res.status(500).json({ error: "Database connection failed", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Database connection failed", details: error.message });
   }
 });
 
@@ -81,82 +83,198 @@ app.post("/api/setup-test", async (req, res) => {
 });
 
 /* ==========
-   AUTH (no tasks)
-   Manual SQL + bcrypt
+   AUTH - Multi-role authentication
+   Supports: user, admin, nutritionist
    ========== */
 
-// POST /api/signup  { email, password }
-app.post("/api/signup", async (req, res) => {
+// Helper to generate session ID
+const crypto = require("crypto");
+function generateSessionId() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+// POST /api/auth/login  { email, password, role }
+// role must be: "user", "admin", or "nutritionist"
+app.post("/api/auth/login", async (req, res) => {
   try {
-    const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: "email and password required" });
-
-    const hash = await bcrypt.hash(password, 10);
-    const connection = await mysql.createConnection(config);
-
-    // this assumes a simple users table (id, email, password)
-    // if your final schema uses different columns, adjust SQL & column names accordingly
-    await connection.execute(
-      "INSERT INTO users (email, password) VALUES (?, ?)",
-      [email, hash]
-    );
-
-    await connection.end();
-    res.status(201).json({ message: "User registered!" });
-  } catch (error) {
-    // duplicate email → ER_DUP_ENTRY
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// POST /api/login  { email, password }
-app.post("/api/login", async (req, res) => {
-  try {
-    const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: "email and password required" });
+    const { email, password, role } = req.body || {};
+    if (!email || !password || !role) {
+      return res
+        .status(400)
+        .json({ error: "email, password, and role are required" });
+    }
 
     const connection = await mysql.createConnection(config);
+    let user, tableName, idField, sessionTable;
+
+    // Determine which table to query based on role
+    if (role === "user") {
+      tableName = "Users";
+      idField = "UserID";
+      sessionTable = "UserSessions";
+    } else if (role === "admin") {
+      tableName = "Admin";
+      idField = "AdminID";
+      sessionTable = "AdminSessions";
+    } else if (role === "nutritionist") {
+      tableName = "Nutritionist";
+      idField = "NutritionistID";
+      sessionTable = "NutritionistSessions";
+    } else {
+      await connection.end();
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
+    // Query the appropriate table
     const [rows] = await connection.execute(
-      "SELECT id, email, password FROM users WHERE email = ?",
+      `SELECT ${idField}, FirstName, LastName, Email, PasswordHash FROM ${tableName} WHERE Email = ?`,
       [email]
     );
+
+    if (rows.length === 0) {
+      await connection.end();
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    user = rows[0];
+
+    // Note: The sample data in schema.sql uses 'notrealpassword' as plain text
+    // For real passwords, we'd use bcrypt.compare()
+    // For now, we'll handle both cases:
+    const isValidPassword =
+      user.PasswordHash === password ||
+      (await bcrypt.compare(password, user.PasswordHash));
+
+    if (!isValidPassword) {
+      await connection.end();
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // Create session
+    const sessionId = generateSessionId();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    await connection.execute(
+      `INSERT INTO ${sessionTable} (SessionID, ${idField}, ExpiresAt) VALUES (?, ?, ?)`,
+      [sessionId, user[idField], expiresAt]
+    );
+
     await connection.end();
 
-    const user = rows[0];
-    if (!user) return res.status(401).json({ error: "Invalid credentials" });
-
-    const ok = await bcrypt.compare(password, user.password);
-    if (!ok) return res.status(401).json({ error: "Invalid credentials" });
-
-    // for class demo: return user data; in production, issue a session/JWT
-    res.json({ id: user.id, email: user.email });
+    res.json({
+      sessionId,
+      role,
+      user: {
+        id: user[idField],
+        firstName: user.FirstName,
+        lastName: user.LastName,
+        email: user.Email,
+      },
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// GET /api/users  – quick view of users (demo convenience)
-app.get("/api/users", async (_req, res) => {
+// POST /api/auth/logout  { sessionId, role }
+app.post("/api/auth/logout", async (req, res) => {
   try {
+    const { sessionId, role } = req.body || {};
+    if (!sessionId || !role) {
+      return res.status(400).json({ error: "sessionId and role are required" });
+    }
+
     const connection = await mysql.createConnection(config);
-    const [rows] = await connection.execute("SELECT id, email FROM users ORDER BY id DESC");
+    let sessionTable;
+
+    if (role === "user") sessionTable = "UserSessions";
+    else if (role === "admin") sessionTable = "AdminSessions";
+    else if (role === "nutritionist") sessionTable = "NutritionistSessions";
+    else {
+      await connection.end();
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
+    await connection.execute(
+      `DELETE FROM ${sessionTable} WHERE SessionID = ?`,
+      [sessionId]
+    );
+
     await connection.end();
-    res.json(rows);
+    res.json({ message: "Logged out successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// DELETE /api/users/:id – remove a user (demo convenience)
-app.delete("/api/users/:id", async (req, res) => {
+// GET /api/auth/me?sessionId=xxx&role=xxx
+// Verify session and return user info
+app.get("/api/auth/me", async (req, res) => {
   try {
-    const { id } = req.params;
+    const { sessionId, role } = req.query;
+    if (!sessionId || !role) {
+      return res.status(400).json({ error: "sessionId and role are required" });
+    }
+
     const connection = await mysql.createConnection(config);
-    const [result] = await connection.execute("DELETE FROM users WHERE id = ?", [id]);
+    let sessionTable, userTable, idField;
+
+    if (role === "user") {
+      sessionTable = "UserSessions";
+      userTable = "Users";
+      idField = "UserID";
+    } else if (role === "admin") {
+      sessionTable = "AdminSessions";
+      userTable = "Admin";
+      idField = "AdminID";
+    } else if (role === "nutritionist") {
+      sessionTable = "NutritionistSessions";
+      userTable = "Nutritionist";
+      idField = "NutritionistID";
+    } else {
+      await connection.end();
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
+    // Check if session exists and is not expired
+    const [sessions] = await connection.execute(
+      `SELECT ${idField}, ExpiresAt FROM ${sessionTable} WHERE SessionID = ?`,
+      [sessionId]
+    );
+
+    if (sessions.length === 0) {
+      await connection.end();
+      return res.status(401).json({ error: "Invalid session" });
+    }
+
+    const session = sessions[0];
+    if (session.ExpiresAt && new Date(session.ExpiresAt) < new Date()) {
+      await connection.end();
+      return res.status(401).json({ error: "Session expired" });
+    }
+
+    // Get user info
+    const [users] = await connection.execute(
+      `SELECT ${idField}, FirstName, LastName, Email FROM ${userTable} WHERE ${idField} = ?`,
+      [session[idField]]
+    );
+
     await connection.end();
 
-    if (result.affectedRows === 0) return res.status(404).json({ error: "User not found" });
-    res.json({ message: "User deleted!", deletedUserId: id });
+    if (users.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const user = users[0];
+    res.json({
+      role,
+      user: {
+        id: user[idField],
+        firstName: user.FirstName,
+        lastName: user.LastName,
+        email: user.Email,
+      },
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -201,9 +319,12 @@ app.get("/api/foods", async (req, res) => {
 // body: { HallID?, FoodName*, Calories?, Fat?, Protein?, Carbs?, ServingSize* }
 app.post("/api/foods", async (req, res) => {
   try {
-    const { HallID, FoodName, Calories, Fat, Protein, Carbs, ServingSize } = req.body || {};
+    const { HallID, FoodName, Calories, Fat, Protein, Carbs, ServingSize } =
+      req.body || {};
     if (!FoodName || !ServingSize) {
-      return res.status(400).json({ error: "FoodName and ServingSize are required" });
+      return res
+        .status(400)
+        .json({ error: "FoodName and ServingSize are required" });
     }
 
     const connection = await mysql.createConnection(config);
@@ -255,10 +376,14 @@ app.delete("/api/foods/:foodId", async (req, res) => {
   try {
     const { foodId } = req.params;
     const connection = await mysql.createConnection(config);
-    const [r] = await connection.execute("DELETE FROM FoodCatalogue WHERE FoodID = ?", [foodId]);
+    const [r] = await connection.execute(
+      "DELETE FROM FoodCatalogue WHERE FoodID = ?",
+      [foodId]
+    );
     await connection.end();
 
-    if (r.affectedRows === 0) return res.status(404).json({ error: "Food not found" });
+    if (r.affectedRows === 0)
+      return res.status(404).json({ error: "Food not found" });
     res.status(204).end();
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -285,19 +410,32 @@ app.get("/api/halls", async (_req, res) => {
 app.listen(3000, () => {
   console.log("Server running on http://localhost:3000");
   console.log("\n=== DB UTIL ===");
-  console.log("  GET    /api/test-db                  - test database connection");
-  console.log("  POST   /api/setup                    - ensure minimal users table");
+  console.log(
+    "  GET    /api/test-db                  - test database connection"
+  );
+  console.log(
+    "  POST   /api/setup                    - ensure minimal users table"
+  );
   console.log("  POST   /api/setup-test               - apply full schema.sql");
 
-  console.log("\n=== AUTH ===");
-  console.log("  POST   /api/signup                   - create user (hashed password)");
-  console.log("  POST   /api/login                    - login user (bcrypt compare)");
-  console.log("  GET    /api/users                    - list users (demo convenience)");
-  console.log("  DELETE /api/users/:id                - delete user (demo convenience)");
+  console.log("\n=== AUTH (Multi-role) ===");
+  console.log(
+    "  POST   /api/auth/login               - login (email, password, role)"
+  );
+  console.log(
+    "  POST   /api/auth/logout              - logout (sessionId, role)"
+  );
+  console.log(
+    "  GET    /api/auth/me                  - get current user (sessionId, role)"
+  );
 
   console.log("\n=== FOODS ===");
-  console.log("  GET    /api/foods?hallId=&limit=     - list foods (JOIN halls)");
+  console.log(
+    "  GET    /api/foods?hallId=&limit=     - list foods (JOIN halls)"
+  );
   console.log("  POST   /api/foods                    - add a food");
   console.log("  DELETE /api/foods/:foodId            - delete a food");
-  console.log("  GET    /api/halls                    - list halls (for dropdowns)");
+  console.log(
+    "  GET    /api/halls                    - list halls (for dropdowns)"
+  );
 });
