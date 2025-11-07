@@ -13,9 +13,31 @@ export type Food = {
 
 // For creating new foods (server generates FoodID)
 export type NewFood = Omit<Food, "FoodID">
- 
+
 // Optional helper for a halls dropdown
 export type Hall = {
   HallID: number
   HallName: string
 }
+
+// Authentication types
+export type Role = "user" | "admin" | "nutritionist"
+
+export type User = {
+  id: number
+  firstName: string
+  lastName: string
+  email: string
+}
+
+export type AuthResponse = {
+  sessionId: string
+  role: Role
+  user: User
+}
+
+export type AuthSession = {
+  sessionId: string
+  role: Role
+  user: User
+} | null

@@ -1,46 +1,104 @@
-import { useEffect, useState } from "react"
-import { listFoods, createFood, deleteFood } from "./api"
-import type { Food, NewFood } from "./types"
-import AddFoodForm from "./components/AddFoodForm"
-import FoodTable from "./components/FoodTable"
+import { useState, useEffect } from "react"
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
+import { logout as logoutApi } from "./api"
+import type { Role, AuthSession } from "./types"
+import Login from "./pages/Login"
+import AdminDashboard from "./pages/AdminDashboard"
+import NutritionistDashboard from "./pages/NutritionistDashboard"
+import UserDashboard from "./pages/UserDashboard"
 
 export default function App() {
-  const [items, setItems] = useState<Food[]>([])
+  const [authSession, setAuthSession] = useState<AuthSession>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
-  async function refresh() {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await listFoods({ limit: 200 })
-      setItems(data)
-    } catch (err: any) {
-      setError(err?.message ?? "Failed to load foods")
-    } finally {
-      setLoading(false)
+  // Load session from localStorage on mount
+  useEffect(() => {
+    const savedSession = localStorage.getItem("authSession")
+    if (savedSession) {
+      try {
+        setAuthSession(JSON.parse(savedSession))
+      } catch {
+        localStorage.removeItem("authSession")
+      }
     }
+    setLoading(false)
+  }, [])
+
+  function handleLoginSuccess(
+    sessionId: string,
+    role: Role,
+    user: { id: number; firstName: string; lastName: string; email: string }
+  ) {
+    const session = { sessionId, role, user }
+    setAuthSession(session)
+    localStorage.setItem("authSession", JSON.stringify(session))
   }
 
-  useEffect(() => { refresh() }, [])
-
-  async function handleCreate(newItem: NewFood) {
-    await createFood(newItem)
-    await refresh()
+  async function handleLogout() {
+    if (authSession) {
+      try {
+        await logoutApi(authSession.sessionId, authSession.role)
+      } catch (err) {
+        console.error("Logout error:", err)
+      }
+    }
+    setAuthSession(null)
+    localStorage.removeItem("authSession")
   }
 
-  async function handleDelete(id: number) {
-    await deleteFood(id)
-    await refresh()
+  if (loading) {
+    return <div style={{ padding: 24 }}>Loading...</div>
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
-      <h2>Food Catalogue — Add & Delete</h2>
-      {error && <div style={{ color: "crimson", marginBottom: 12 }}>{error}</div>}
-      <AddFoodForm onCreate={handleCreate} />
-      <hr style={{ margin: "16px 0" }} />
-      {loading ? <p>Loading…</p> : <FoodTable items={items} onDelete={handleDelete} />}
-    </div>
+    <Router>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            authSession ? (
+              <Navigate to={`/${authSession.role}`} replace />
+            ) : (
+              <Login onLoginSuccess={handleLoginSuccess} />
+            )
+          }
+        />
+
+        <Route
+          path="/admin"
+          element={
+            authSession && authSession.role === "admin" ? (
+              <AdminDashboard user={authSession.user} onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/nutritionist"
+          element={
+            authSession && authSession.role === "nutritionist" ? (
+              <NutritionistDashboard user={authSession.user} onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/user"
+          element={
+            authSession && authSession.role === "user" ? (
+              <UserDashboard user={authSession.user} onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Router>
   )
 }

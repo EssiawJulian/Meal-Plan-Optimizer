@@ -1,4 +1,4 @@
-import type { Food, NewFood, Hall } from "./types"
+import type { Food, NewFood, Hall, Role, AuthResponse } from "./types"
 
 const BASE = "/api"
 
@@ -40,4 +40,43 @@ export async function listHalls() {
   const res = await fetch(`${BASE}/halls`)
   if (!res.ok) throw new Error("Failed to load halls")
   return (await res.json()) as Hall[]
+}
+
+// ===== AUTH API =====
+
+// POST /api/auth/login
+export async function login(email: string, password: string, role: Role) {
+  const res = await fetch(`${BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, role }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Login failed")
+  }
+  return (await res.json()) as AuthResponse
+}
+
+// POST /api/auth/logout
+export async function logout(sessionId: string, role: Role) {
+  const res = await fetch(`${BASE}/auth/logout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, role }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Logout failed")
+  }
+}
+
+// GET /api/auth/me
+export async function getCurrentUser(sessionId: string, role: Role) {
+  const res = await fetch(`${BASE}/auth/me?sessionId=${sessionId}&role=${role}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Failed to get user info")
+  }
+  return (await res.json()) as { role: Role; user: { id: number; firstName: string; lastName: string; email: string } }
 }
