@@ -152,7 +152,7 @@ export default function Login({ onLoginSuccess }: Props) {
             </form>
 
             <div style={{ marginTop: 16, fontSize: 12, color: "#666", backgroundColor: "#f9f9f9", padding: 12, borderRadius: 4 }}>
-              <strong>Test credentials (from schema.sql):</strong>
+              <strong>Test credentials:</strong>
               <ul style={{ margin: "8px 0", paddingLeft: 20 }}>
                 {selectedRole === "user" && <li>alice.smith@example.com / notrealpassword</li>}
                 {selectedRole === "admin" && <li>admin1@vt.edu / notrealpassword</li>}

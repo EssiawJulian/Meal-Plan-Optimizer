@@ -39,9 +39,6 @@ export default function NutritionistDashboard({ user, onLogout }: Props) {
         </p>
         <ul style={{ paddingLeft: 24, lineHeight: 1.8 }}>
           <li>View user questions and provide guidance</li>
-          <li>Review meal plans and provide recommendations</li>
-          <li>Access nutrition analysis tools</li>
-          <li>Manage client consultations</li>
         </ul>
       </div>
     </div>
