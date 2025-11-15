@@ -6,6 +6,7 @@ import Login from "./pages/Login"
 import AdminDashboard from "./pages/AdminDashboard"
 import NutritionistDashboard from "./pages/NutritionistDashboard"
 import UserDashboard from "./pages/UserDashboard"
+import BrowseMenus from './pages/BrowseMenus';
 
 export default function App() {
   const [authSession, setAuthSession] = useState<AuthSession>(null)
@@ -95,6 +96,17 @@ export default function App() {
               <Navigate to="/" replace />
             )
           }
+        />
+
+        <Route 
+          path="/user/browse-menus" 
+          element={
+            authSession && authSession.role === "user" ? (
+              <BrowseMenus />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          } 
         />
 
         <Route path="*" element={<Navigate to="/" replace />} />
