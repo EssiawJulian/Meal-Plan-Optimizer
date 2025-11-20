@@ -74,7 +74,29 @@ const UserDashboard = ({ user, onLogout }: UserDashboardProps) => {
               Browse dining hall menus
             </button>
           </li>
-          <li>Ask nutritionists questions</li>
+          <li>
+            <button
+              onClick={() => navigate('/user/questions')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#007bff',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                fontSize: 'inherit',
+                padding: 0,
+                fontFamily: 'inherit',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#0056b3';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#007bff';
+              }}
+            >
+              Ask nutritionist questions
+            </button>
+          </li>
         </ul>
       </div>
     </div>

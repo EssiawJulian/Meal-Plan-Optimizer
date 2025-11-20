@@ -404,6 +404,145 @@ app.get("/api/halls", async (_req, res) => {
   }
 });
 
+/* ==========================
+   QUESTIONS & ANSWERS
+   Tables:
+   - Questions(QuestionID, UserID, UserMessage, MessageReply, MessageStatus)
+   ========================== */
+
+// POST /api/questions
+// body: { userId, userMessage }
+app.post("/api/questions", async (req, res) => {
+  try {
+    const { userId, userMessage } = req.body || {};
+    if (!userId || !userMessage) {
+      return res.status(400).json({ error: "userId and userMessage are required" });
+    }
+
+    const connection = await mysql.createConnection(config);
+
+    // Verify user exists
+    const [users] = await connection.execute(
+      "SELECT UserID FROM Users WHERE UserID = ?",
+      [userId]
+    );
+    if (users.length === 0) {
+      await connection.end();
+      return res.status(400).json({ error: "Invalid userId" });
+    }
+
+    const [result] = await connection.execute(
+      `INSERT INTO Questions (UserID, UserMessage, MessageStatus)
+       VALUES (?, ?, FALSE)`,
+      [userId, userMessage]
+    );
+
+    const [rows] = await connection.execute(
+      `SELECT q.*, u.FirstName, u.LastName, u.Email
+       FROM Questions q
+       JOIN Users u ON q.UserID = u.UserID
+       WHERE q.QuestionID = ?`,
+      [result.insertId]
+    );
+
+    await connection.end();
+    res.status(201).json(rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/questions/user/:userId
+// Get all questions for a specific user with replies
+app.get("/api/questions/user/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const connection = await mysql.createConnection(config);
+
+    const [rows] = await connection.execute(
+      `SELECT q.*, u.FirstName, u.LastName, u.Email
+       FROM Questions q
+       JOIN Users u ON q.UserID = u.UserID
+       WHERE q.UserID = ?
+       ORDER BY q.QuestionID DESC`,
+      [userId]
+    );
+
+    await connection.end();
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/questions/unanswered
+// Get all unanswered questions (MessageStatus = FALSE)
+app.get("/api/questions/unanswered", async (req, res) => {
+  try {
+    const connection = await mysql.createConnection(config);
+
+    const [rows] = await connection.execute(
+      `SELECT q.*, u.FirstName, u.LastName, u.Email
+       FROM Questions q
+       JOIN Users u ON q.UserID = u.UserID
+       WHERE q.MessageStatus = FALSE
+       ORDER BY q.QuestionID ASC`
+    );
+
+    await connection.end();
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/questions/:questionId/reply
+// body: { messageReply }
+app.put("/api/questions/:questionId/reply", async (req, res) => {
+  try {
+    const { questionId } = req.params;
+    const { messageReply } = req.body || {};
+
+    if (!messageReply) {
+      return res.status(400).json({ error: "messageReply is required" });
+    }
+
+    const connection = await mysql.createConnection(config);
+
+    // Check if question exists
+    const [questions] = await connection.execute(
+      "SELECT QuestionID FROM Questions WHERE QuestionID = ?",
+      [questionId]
+    );
+
+    if (questions.length === 0) {
+      await connection.end();
+      return res.status(404).json({ error: "Question not found" });
+    }
+
+    // Update the question with reply and set MessageStatus to TRUE
+    await connection.execute(
+      `UPDATE Questions
+       SET MessageReply = ?, MessageStatus = TRUE
+       WHERE QuestionID = ?`,
+      [messageReply, questionId]
+    );
+
+    const [rows] = await connection.execute(
+      `SELECT q.*, u.FirstName, u.LastName, u.Email
+       FROM Questions q
+       JOIN Users u ON q.UserID = u.UserID
+       WHERE q.QuestionID = ?`,
+      [questionId]
+    );
+
+    await connection.end();
+    res.json(rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 /* ========
    STARTUP
    ======== */
@@ -437,5 +576,19 @@ app.listen(3000, () => {
   console.log("  DELETE /api/foods/:foodId            - delete a food");
   console.log(
     "  GET    /api/halls                    - list halls (for dropdowns)"
+  );
+
+  console.log("\n=== QUESTIONS ===");
+  console.log(
+    "  POST   /api/questions               - create a question (user)"
+  );
+  console.log(
+    "  GET    /api/questions/user/:userId  - get user's questions with replies"
+  );
+  console.log(
+    "  GET    /api/questions/unanswered    - get unanswered questions (nutritionist)"
+  );
+  console.log(
+    "  PUT    /api/questions/:questionId/reply - reply to a question (nutritionist)"
   );
 });

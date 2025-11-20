@@ -7,6 +7,8 @@ import AdminDashboard from "./pages/AdminDashboard"
 import NutritionistDashboard from "./pages/NutritionistDashboard"
 import UserDashboard from "./pages/UserDashboard"
 import BrowseMenus from './pages/BrowseMenus';
+import UserQuestions from './pages/UserQuestions';
+import NutritionistQuestions from './pages/NutritionistQuestions';
 
 export default function App() {
   const [authSession, setAuthSession] = useState<AuthSession>(null)
@@ -98,15 +100,37 @@ export default function App() {
           }
         />
 
-        <Route 
-          path="/user/browse-menus" 
+        <Route
+          path="/user/browse-menus"
           element={
             authSession && authSession.role === "user" ? (
               <BrowseMenus />
             ) : (
               <Navigate to="/" replace />
             )
-          } 
+          }
+        />
+
+        <Route
+          path="/user/questions"
+          element={
+            authSession && authSession.role === "user" ? (
+              <UserQuestions user={authSession.user} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/nutritionist/questions"
+          element={
+            authSession && authSession.role === "nutritionist" ? (
+              <NutritionistQuestions />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
         />
 
         <Route path="*" element={<Navigate to="/" replace />} />

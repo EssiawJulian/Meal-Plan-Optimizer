@@ -1,4 +1,4 @@
-import type { Food, NewFood, Hall, Role, AuthResponse } from "./types"
+import type { Food, NewFood, Hall, Role, AuthResponse, Question, NewQuestion } from "./types"
 
 const BASE = "/api"
 
@@ -79,4 +79,54 @@ export async function getCurrentUser(sessionId: string, role: Role) {
     throw new Error(err?.error || "Failed to get user info")
   }
   return (await res.json()) as { role: Role; user: { id: number; firstName: string; lastName: string; email: string } }
+}
+
+// ===== QUESTIONS API =====
+
+// POST /api/questions
+export async function createQuestion(question: NewQuestion) {
+  const res = await fetch(`${BASE}/questions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(question),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Failed to create question")
+  }
+  return (await res.json()) as Question
+}
+
+// GET /api/questions/user/:userId
+export async function getUserQuestions(userId: number) {
+  const res = await fetch(`${BASE}/questions/user/${userId}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Failed to load questions")
+  }
+  return (await res.json()) as Question[]
+}
+
+// GET /api/questions/unanswered
+export async function getUnansweredQuestions() {
+  const res = await fetch(`${BASE}/questions/unanswered`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Failed to load unanswered questions")
+  }
+  return (await res.json()) as Question[]
+}
+
+// PUT /api/questions/:questionId/reply
+export async function replyToQuestion(questionId: number, messageReply: string) {
+  const res = await fetch(`${BASE}/questions/${questionId}/reply`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messageReply }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Failed to reply to question")
+  }
+  return (await res.json()) as Question
 }

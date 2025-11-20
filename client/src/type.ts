@@ -41,3 +41,20 @@ export type AuthSession = {
   role: Role
   user: User
 } | null
+
+// Question types
+export type Question = {
+  QuestionID: number
+  UserID: number
+  UserMessage: string
+  MessageReply: string | null
+  MessageStatus: boolean
+  FirstName?: string
+  LastName?: string
+  Email?: string
+}
+
+export type NewQuestion = {
+  userId: number
+  userMessage: string
+}

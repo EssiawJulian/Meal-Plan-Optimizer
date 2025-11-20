@@ -1,9 +1,12 @@
+import { useNavigate } from 'react-router-dom'
+
 type Props = {
   user: { firstName: string; lastName: string }
   onLogout: () => void
 }
 
 export default function NutritionistDashboard({ user, onLogout }: Props) {
+  const navigate = useNavigate()
   return (
     <div style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
@@ -38,7 +41,29 @@ export default function NutritionistDashboard({ user, onLogout }: Props) {
           Welcome to your nutritionist dashboard. Additional features will be implemented here later.
         </p>
         <ul style={{ paddingLeft: 24, lineHeight: 1.8 }}>
-          <li>View user questions and provide guidance</li>
+          <li>
+            <button
+              onClick={() => navigate('/nutritionist/questions')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#007bff',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                fontSize: 'inherit',
+                padding: 0,
+                fontFamily: 'inherit',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#0056b3'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#007bff'
+              }}
+            >
+              View user questions and provide guidance
+            </button>
+          </li>
         </ul>
       </div>
     </div>
