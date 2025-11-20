@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { listHalls, listFoods } from '../api';
 import '../styles/global.css';
 
 interface DiningHall {
@@ -41,9 +42,7 @@ const BrowseMenus = () => {
 
   const fetchDiningHalls = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/halls');
-      if (!response.ok) throw new Error('Failed to fetch dining halls');
-      const data = await response.json();
+      const data = await listHalls();
       setDiningHalls(data);
       setLoading(false);
     } catch (err) {
@@ -56,9 +55,7 @@ const BrowseMenus = () => {
   const fetchFoodItems = async (hallId: number) => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:3000/api/foods?hallId=${hallId}`);
-      if (!response.ok) throw new Error('Failed to fetch food items');
-      const data = await response.json();
+      const data = await listFoods({ hallId });
       setFoodItems(data);
       setLoading(false);
     } catch (err) {

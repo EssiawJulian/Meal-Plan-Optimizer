@@ -44,6 +44,20 @@ export async function listHalls() {
 
 // ===== AUTH API =====
 
+// POST /api/auth/signup
+export async function signup(firstName: string, lastName: string, email: string, password: string) {
+  const res = await fetch(`${BASE}/auth/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ firstName, lastName, email, password }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Signup failed")
+  }
+  return (await res.json()) as { message: string; user: { id: number; firstName: string; lastName: string; email: string } }
+}
+
 // POST /api/auth/login
 export async function login(email: string, password: string, role: Role) {
   const res = await fetch(`${BASE}/auth/login`, {

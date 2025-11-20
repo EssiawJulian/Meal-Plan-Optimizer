@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { login } from "../api"
 import type { Role } from "../types"
 
@@ -7,6 +8,7 @@ type Props = {
 }
 
 export default function Login({ onLoginSuccess }: Props) {
+  const navigate = useNavigate()
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -64,6 +66,31 @@ export default function Login({ onLoginSuccess }: Props) {
               <RoleButton role="user" label="User Login" onClick={() => handleRoleSelect("user")} />
               <RoleButton role="admin" label="Admin Login" onClick={() => handleRoleSelect("admin")} />
               <RoleButton role="nutritionist" label="Nutritionist Login" onClick={() => handleRoleSelect("nutritionist")} />
+            </div>
+
+            <div style={{
+              marginTop: 24,
+              paddingTop: 24,
+              borderTop: "1px solid #eee",
+              textAlign: "center",
+              fontSize: 14
+            }}>
+              <span style={{ color: "#666" }}>Don't have a user account? </span>
+              <button
+                onClick={() => navigate("/signup")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#0066cc",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                  fontSize: 14,
+                  padding: 0,
+                  fontFamily: "inherit"
+                }}
+              >
+                Sign up
+              </button>
             </div>
           </div>
         ) : (

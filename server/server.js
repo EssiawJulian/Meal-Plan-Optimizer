@@ -13,7 +13,10 @@ const app = express();
 app.use(express.json());
 
 // allow frontend (Vite) to call this API during development
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+app.use(cors({
+  origin: ["http://localhost:5173", "http://localhost:5174"],
+  credentials: true
+}));
 
 // database connection configuration (matches docker-compose)
 const config = {
@@ -92,6 +95,78 @@ const crypto = require("crypto");
 function generateSessionId() {
   return crypto.randomBytes(32).toString("hex");
 }
+
+// POST /api/auth/signup - User registration only
+// body: { firstName, lastName, email, password }
+app.post("/api/auth/signup", async (req, res) => {
+  try {
+    const { firstName, lastName, email, password } = req.body || {};
+
+    if (!firstName || !lastName || !email || !password) {
+      return res.status(400).json({
+        error: "firstName, lastName, email, and password are required"
+      });
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
+
+    // Basic password validation (minimum 6 characters)
+    if (password.length < 6) {
+      return res.status(400).json({
+        error: "Password must be at least 6 characters long"
+      });
+    }
+
+    const connection = await mysql.createConnection(config);
+
+    // Check if email already exists
+    const [existingUsers] = await connection.execute(
+      "SELECT Email FROM Users WHERE Email = ?",
+      [email]
+    );
+
+    if (existingUsers.length > 0) {
+      await connection.end();
+      return res.status(409).json({ error: "Email already registered" });
+    }
+
+    // Hash the password
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    // Insert new user
+    const [result] = await connection.execute(
+      `INSERT INTO Users (FirstName, LastName, Email, PasswordHash)
+       VALUES (?, ?, ?, ?)`,
+      [firstName, lastName, email, passwordHash]
+    );
+
+    // Get the created user
+    const [users] = await connection.execute(
+      `SELECT UserID, FirstName, LastName, Email FROM Users WHERE UserID = ?`,
+      [result.insertId]
+    );
+
+    await connection.end();
+
+    const user = users[0];
+    res.status(201).json({
+      message: "User created successfully",
+      user: {
+        id: user.UserID,
+        firstName: user.FirstName,
+        lastName: user.LastName,
+        email: user.Email,
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // POST /api/auth/login  { email, password, role }
 // role must be: "user", "admin", or "nutritionist"
@@ -558,6 +633,9 @@ app.listen(3000, () => {
   console.log("  POST   /api/setup-test               - apply full schema.sql");
 
   console.log("\n=== AUTH (Multi-role) ===");
+  console.log(
+    "  POST   /api/auth/signup              - user signup (firstName, lastName, email, password)"
+  );
   console.log(
     "  POST   /api/auth/login               - login (email, password, role)"
   );

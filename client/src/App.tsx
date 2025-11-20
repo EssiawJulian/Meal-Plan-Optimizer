@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { logout as logoutApi } from "./api"
 import type { Role, AuthSession } from "./types"
 import Login from "./pages/Login"
+import Signup from "./pages/Signup"
 import AdminDashboard from "./pages/AdminDashboard"
 import NutritionistDashboard from "./pages/NutritionistDashboard"
 import UserDashboard from "./pages/UserDashboard"
@@ -63,6 +64,17 @@ export default function App() {
               <Navigate to={`/${authSession.role}`} replace />
             ) : (
               <Login onLoginSuccess={handleLoginSuccess} />
+            )
+          }
+        />
+
+        <Route
+          path="/signup"
+          element={
+            authSession ? (
+              <Navigate to={`/${authSession.role}`} replace />
+            ) : (
+              <Signup />
             )
           }
         />
