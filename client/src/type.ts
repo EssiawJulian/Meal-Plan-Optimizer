@@ -58,3 +58,10 @@ export type NewQuestion = {
   userId: number
   userMessage: string
 }
+
+export type UserGoals = {
+  Calories: number
+  Fat: number
+  Protein: number
+  Carbs: number
+}

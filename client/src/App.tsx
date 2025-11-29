@@ -11,6 +11,7 @@ import BrowseMenus from './pages/BrowseMenus';
 import UserQuestions from './pages/UserQuestions';
 import NutritionistQuestions from './pages/NutritionistQuestions';
 import ManageAccounts from './pages/ManageAccounts';
+import Settings from './pages/Settings';
 
 export default function App() {
   const [authSession, setAuthSession] = useState<AuthSession>(null)
@@ -151,6 +152,17 @@ export default function App() {
           element={
             authSession && authSession.role === "admin" ? (
               <ManageAccounts sessionId={authSession.sessionId} onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/settings"
+          element={
+            authSession ? (
+              <Settings authSession={authSession} onLogout={handleLogout} />
             ) : (
               <Navigate to="/" replace />
             )
