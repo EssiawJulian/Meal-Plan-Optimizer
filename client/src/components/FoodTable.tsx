@@ -1,4 +1,4 @@
-import type { Food } from "../types"
+import type { Food } from "../type"
 
 type Props = {
   items: Food[]

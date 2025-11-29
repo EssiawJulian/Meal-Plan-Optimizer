@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { login } from "../api"
-import type { Role } from "../types"
+import type { Role } from "../type"
 
 type Props = {
   onLoginSuccess: (sessionId: string, role: Role, user: { id: number; firstName: string; lastName: string; email: string }) => void

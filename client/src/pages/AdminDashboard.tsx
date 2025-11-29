@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { listFoods, createFood, deleteFood } from "../api"
-import type { Food, NewFood } from "../types"
+import type { Food, NewFood } from "../type"
 import AddFoodForm from "../components/AddFoodForm"
 import FoodTable from "../components/FoodTable"
 
@@ -10,6 +11,7 @@ type Props = {
 }
 
 export default function AdminDashboard({ user, onLogout }: Props) {
+  const navigate = useNavigate()
   const [items, setItems] = useState<Food[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -60,6 +62,40 @@ export default function AdminDashboard({ user, onLogout }: Props) {
           }}
         >
           Logout
+        </button>
+      </div>
+
+      <div style={{
+        padding: 24,
+        backgroundColor: "#f9f9f9",
+        borderRadius: 8,
+        border: "1px solid #ddd",
+        marginBottom: 24
+      }}>
+        <h3 style={{ marginTop: 0 }}>Account Management</h3>
+        <p style={{ color: "#666", marginBottom: 16 }}>
+          Create and manage admin and nutritionist accounts
+        </p>
+        <button
+          onClick={() => navigate('/admin/manage-accounts')}
+          style={{
+            padding: "10px 20px",
+            backgroundColor: "#007bff",
+            color: "white",
+            border: "none",
+            borderRadius: 4,
+            cursor: "pointer",
+            fontSize: 14,
+            fontWeight: 500
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#0056b3"
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "#007bff"
+          }}
+        >
+          Manage Accounts
         </button>
       </div>
 

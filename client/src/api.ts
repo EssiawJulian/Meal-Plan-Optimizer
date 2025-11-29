@@ -1,4 +1,4 @@
-import type { Food, NewFood, Hall, Role, AuthResponse, Question, NewQuestion } from "./types"
+import type { Food, NewFood, Hall, Role, AuthResponse, Question, NewQuestion } from "./type"
 
 const BASE = "/api"
 
@@ -143,4 +143,68 @@ export async function replyToQuestion(questionId: number, messageReply: string) 
     throw new Error(err?.error || "Failed to reply to question")
   }
   return (await res.json()) as Question
+}
+
+// ===== ADMIN MANAGEMENT API =====
+
+// POST /api/admin/create-admin
+export async function createAdmin(sessionId: string, firstName: string, lastName: string, email: string, password: string) {
+  const res = await fetch(`${BASE}/admin/create-admin`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "sessionId": sessionId
+    },
+    body: JSON.stringify({ firstName, lastName, email, password }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Failed to create admin")
+  }
+  return (await res.json()) as { message: string; admin: { id: number; firstName: string; lastName: string; email: string } }
+}
+
+// POST /api/admin/create-nutritionist
+export async function createNutritionist(sessionId: string, firstName: string, lastName: string, email: string, password: string) {
+  const res = await fetch(`${BASE}/admin/create-nutritionist`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "sessionId": sessionId
+    },
+    body: JSON.stringify({ firstName, lastName, email, password }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Failed to create nutritionist")
+  }
+  return (await res.json()) as { message: string; nutritionist: { id: number; firstName: string; lastName: string; email: string } }
+}
+
+// GET /api/admin/list-admins
+export async function listAdmins(sessionId: string) {
+  const res = await fetch(`${BASE}/admin/list-admins`, {
+    headers: {
+      "sessionId": sessionId
+    }
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Failed to load admins")
+  }
+  return (await res.json()) as Array<{ AdminID: number; FirstName: string; LastName: string; Email: string }>
+}
+
+// GET /api/admin/list-nutritionists
+export async function listNutritionists(sessionId: string) {
+  const res = await fetch(`${BASE}/admin/list-nutritionists`, {
+    headers: {
+      "sessionId": sessionId
+    }
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Failed to load nutritionists")
+  }
+  return (await res.json()) as Array<{ NutritionistID: number; FirstName: string; LastName: string; Email: string }>
 }

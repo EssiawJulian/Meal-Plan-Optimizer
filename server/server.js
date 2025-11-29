@@ -5,6 +5,11 @@ const fs = require("fs");
 const path = require("path");
 const bcrypt = require("bcrypt");
 const cors = require("cors");
+const {
+  verifyAdmin,
+  verifyNutritionist,
+  verifyAdminOrNutritionist,
+} = require("./middleware/authMiddleware");
 
 // create express app
 const app = express();
@@ -13,10 +18,12 @@ const app = express();
 app.use(express.json());
 
 // allow frontend (Vite) to call this API during development
-app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:5174"],
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "http://localhost:5174"],
+    credentials: true,
+  })
+);
 
 // database connection configuration (matches docker-compose)
 const config = {
@@ -104,7 +111,7 @@ app.post("/api/auth/signup", async (req, res) => {
 
     if (!firstName || !lastName || !email || !password) {
       return res.status(400).json({
-        error: "firstName, lastName, email, and password are required"
+        error: "firstName, lastName, email, and password are required",
       });
     }
 
@@ -117,7 +124,7 @@ app.post("/api/auth/signup", async (req, res) => {
     // Basic password validation (minimum 6 characters)
     if (password.length < 6) {
       return res.status(400).json({
-        error: "Password must be at least 6 characters long"
+        error: "Password must be at least 6 characters long",
       });
     }
 
@@ -161,7 +168,7 @@ app.post("/api/auth/signup", async (req, res) => {
         firstName: user.FirstName,
         lastName: user.LastName,
         email: user.Email,
-      }
+      },
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -355,6 +362,196 @@ app.get("/api/auth/me", async (req, res) => {
   }
 });
 
+/* ===================================
+   ADMIN & NUTRITIONIST MANAGEMENT
+   Create admin/nutritionist accounts
+   Only accessible by admin
+   =================================== */
+
+// POST /api/admin/create-admin
+// Create a new admin account (requires admin auth)
+// body: { firstName, lastName, email, password }
+app.post("/api/admin/create-admin", verifyAdmin, async (req, res) => {
+  try {
+    const { firstName, lastName, email, password } = req.body || {};
+
+    if (!firstName || !lastName || !email || !password) {
+      return res.status(400).json({
+        error: "firstName, lastName, email, and password are required",
+      });
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
+
+    // Basic password validation (minimum 6 characters)
+    if (password.length < 6) {
+      return res.status(400).json({
+        error: "Password must be at least 6 characters long",
+      });
+    }
+
+    const connection = await mysql.createConnection(config);
+
+    // Check if email already exists in Admin table
+    const [existingAdmins] = await connection.execute(
+      "SELECT Email FROM Admin WHERE Email = ?",
+      [email]
+    );
+
+    if (existingAdmins.length > 0) {
+      await connection.end();
+      return res
+        .status(409)
+        .json({ error: "Email already registered as admin" });
+    }
+
+    // Hash the password
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    // Insert new admin
+    const [result] = await connection.execute(
+      `INSERT INTO Admin (FirstName, LastName, Email, PasswordHash)
+       VALUES (?, ?, ?, ?)`,
+      [firstName, lastName, email, passwordHash]
+    );
+
+    // Get the created admin
+    const [admins] = await connection.execute(
+      `SELECT AdminID, FirstName, LastName, Email FROM Admin WHERE AdminID = ?`,
+      [result.insertId]
+    );
+
+    await connection.end();
+
+    const admin = admins[0];
+    res.status(201).json({
+      message: "Admin created successfully",
+      admin: {
+        id: admin.AdminID,
+        firstName: admin.FirstName,
+        lastName: admin.LastName,
+        email: admin.Email,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/admin/create-nutritionist
+// Create a new nutritionist account (requires admin auth)
+// body: { firstName, lastName, email, password }
+app.post("/api/admin/create-nutritionist", verifyAdmin, async (req, res) => {
+  try {
+    const { firstName, lastName, email, password } = req.body || {};
+
+    if (!firstName || !lastName || !email || !password) {
+      return res.status(400).json({
+        error: "firstName, lastName, email, and password are required",
+      });
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: "Invalid email format" });
+    }
+
+    // Basic password validation (minimum 6 characters)
+    if (password.length < 6) {
+      return res.status(400).json({
+        error: "Password must be at least 6 characters long",
+      });
+    }
+
+    const connection = await mysql.createConnection(config);
+
+    // Check if email already exists in Nutritionist table
+    const [existingNutritionists] = await connection.execute(
+      "SELECT Email FROM Nutritionist WHERE Email = ?",
+      [email]
+    );
+
+    if (existingNutritionists.length > 0) {
+      await connection.end();
+      return res
+        .status(409)
+        .json({ error: "Email already registered as nutritionist" });
+    }
+
+    // Hash the password
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    // Insert new nutritionist
+    const [result] = await connection.execute(
+      `INSERT INTO Nutritionist (FirstName, LastName, Email, PasswordHash)
+       VALUES (?, ?, ?, ?)`,
+      [firstName, lastName, email, passwordHash]
+    );
+
+    // Get the created nutritionist
+    const [nutritionists] = await connection.execute(
+      `SELECT NutritionistID, FirstName, LastName, Email FROM Nutritionist WHERE NutritionistID = ?`,
+      [result.insertId]
+    );
+
+    await connection.end();
+
+    const nutritionist = nutritionists[0];
+    res.status(201).json({
+      message: "Nutritionist created successfully",
+      nutritionist: {
+        id: nutritionist.NutritionistID,
+        firstName: nutritionist.FirstName,
+        lastName: nutritionist.LastName,
+        email: nutritionist.Email,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/admin/list-admins
+// List all admins (requires admin auth)
+app.get("/api/admin/list-admins", verifyAdmin, async (req, res) => {
+  try {
+    const connection = await mysql.createConnection(config);
+
+    const [admins] = await connection.execute(
+      `SELECT AdminID, FirstName, LastName, Email FROM Admin ORDER BY FirstName, LastName`
+    );
+
+    await connection.end();
+    res.json(admins);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/admin/list-nutritionists
+// List all nutritionists (requires admin auth)
+app.get("/api/admin/list-nutritionists", verifyAdmin, async (req, res) => {
+  try {
+    const connection = await mysql.createConnection(config);
+
+    const [nutritionists] = await connection.execute(
+      `SELECT NutritionistID, FirstName, LastName, Email FROM Nutritionist ORDER BY FirstName, LastName`
+    );
+
+    await connection.end();
+    res.json(nutritionists);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 /* ==========================
    VT DINING – FOOD CATALOGUE
    (Add & Delete Foods)
@@ -491,7 +688,9 @@ app.post("/api/questions", async (req, res) => {
   try {
     const { userId, userMessage } = req.body || {};
     if (!userId || !userMessage) {
-      return res.status(400).json({ error: "userId and userMessage are required" });
+      return res
+        .status(400)
+        .json({ error: "userId and userMessage are required" });
     }
 
     const connection = await mysql.createConnection(config);
@@ -644,6 +843,20 @@ app.listen(3000, () => {
   );
   console.log(
     "  GET    /api/auth/me                  - get current user (sessionId, role)"
+  );
+
+  console.log("\n=== ADMIN MANAGEMENT (requires auth) ===");
+  console.log(
+    "  POST   /api/admin/create-admin       - create new admin (header: sessionId)"
+  );
+  console.log(
+    "  POST   /api/admin/create-nutritionist - create new nutritionist (header: sessionId)"
+  );
+  console.log(
+    "  GET    /api/admin/list-admins        - list all admins (header: sessionId)"
+  );
+  console.log(
+    "  GET    /api/admin/list-nutritionists - list all nutritionists (header: sessionId)"
   );
 
   console.log("\n=== FOODS ===");

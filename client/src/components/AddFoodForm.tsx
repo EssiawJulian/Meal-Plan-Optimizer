@@ -1,5 +1,5 @@
 import { useState } from "react"
-import type { NewFood } from "../types"
+import type { NewFood } from "../type"
 
 type Props = {
   onCreate: (f: NewFood) => Promise<void>

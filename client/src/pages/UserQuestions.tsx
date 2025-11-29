@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createQuestion, getUserQuestions } from '../api';
-import type { Question } from '../types';
+import type { Question } from '../type';
 import '../styles/global.css';
 
 interface UserQuestionsProps {

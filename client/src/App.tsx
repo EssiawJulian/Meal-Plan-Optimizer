@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
 import { logout as logoutApi } from "./api"
-import type { Role, AuthSession } from "./types"
+import type { Role, AuthSession } from "./type"
 import Login from "./pages/Login"
 import Signup from "./pages/Signup"
 import AdminDashboard from "./pages/AdminDashboard"
@@ -10,6 +10,7 @@ import UserDashboard from "./pages/UserDashboard"
 import BrowseMenus from './pages/BrowseMenus';
 import UserQuestions from './pages/UserQuestions';
 import NutritionistQuestions from './pages/NutritionistQuestions';
+import ManageAccounts from './pages/ManageAccounts';
 
 export default function App() {
   const [authSession, setAuthSession] = useState<AuthSession>(null)
@@ -139,6 +140,17 @@ export default function App() {
           element={
             authSession && authSession.role === "nutritionist" ? (
               <NutritionistQuestions />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/admin/manage-accounts"
+          element={
+            authSession && authSession.role === "admin" ? (
+              <ManageAccounts sessionId={authSession.sessionId} onLogout={handleLogout} />
             ) : (
               <Navigate to="/" replace />
             )

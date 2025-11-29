@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getUnansweredQuestions, replyToQuestion } from '../api';
-import type { Question } from '../types';
+import type { Question } from '../type';
 import '../styles/global.css';
 
 const NutritionistQuestions = () => {
