@@ -97,6 +97,29 @@ const UserDashboard = ({ user, onLogout }: UserDashboardProps) => {
               Ask nutritionist questions
             </button>
           </li>
+          <li>
+            <button
+              onClick={() => navigate('/user/change-password')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#007bff',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                fontSize: 'inherit',
+                padding: 0,
+                fontFamily: 'inherit',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#0056b3';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#007bff';
+              }}
+            >
+              Change password
+            </button>
+          </li>
         </ul>
       </div>
     </div>

@@ -362,6 +362,128 @@ app.get("/api/auth/me", async (req, res) => {
   }
 });
 
+// POST /api/auth/change-password
+// Change password for any user type
+// body: { sessionId, role, currentPassword, newPassword, newPasswordConfirm }
+app.post("/api/auth/change-password", async (req, res) => {
+  try {
+    const {
+      sessionId,
+      role,
+      currentPassword,
+      newPassword,
+      newPasswordConfirm,
+    } = req.body;
+
+    // Validate input
+    if (
+      !sessionId ||
+      !role ||
+      !currentPassword ||
+      !newPassword ||
+      !newPasswordConfirm
+    ) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+
+    if (newPassword !== newPasswordConfirm) {
+      return res.status(400).json({ error: "New passwords do not match" });
+    }
+
+    if (newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({ error: "New password must be at least 6 characters long" });
+    }
+
+    if (currentPassword === newPassword) {
+      return res
+        .status(400)
+        .json({
+          error: "New password must be different from current password",
+        });
+    }
+
+    const connection = await mysql.createConnection(config);
+    let sessionTable, userTable, idField;
+
+    // Determine tables based on role
+    if (role === "user") {
+      sessionTable = "UserSessions";
+      userTable = "Users";
+      idField = "UserID";
+    } else if (role === "admin") {
+      sessionTable = "AdminSessions";
+      userTable = "Admin";
+      idField = "AdminID";
+    } else if (role === "nutritionist") {
+      sessionTable = "NutritionistSessions";
+      userTable = "Nutritionist";
+      idField = "NutritionistID";
+    } else {
+      await connection.end();
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
+    // Verify session exists and is not expired
+    const [sessions] = await connection.execute(
+      `SELECT ${idField}, ExpiresAt FROM ${sessionTable} WHERE SessionID = ?`,
+      [sessionId]
+    );
+
+    if (sessions.length === 0) {
+      await connection.end();
+      return res.status(401).json({ error: "Invalid session" });
+    }
+
+    const session = sessions[0];
+    if (session.ExpiresAt && new Date(session.ExpiresAt) < new Date()) {
+      await connection.end();
+      return res.status(401).json({ error: "Session expired" });
+    }
+
+    // Get user with password hash
+    const [users] = await connection.execute(
+      `SELECT ${idField}, PasswordHash FROM ${userTable} WHERE ${idField} = ?`,
+      [session[idField]]
+    );
+
+    if (users.length === 0) {
+      await connection.end();
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const user = users[0];
+
+    // Verify current password
+    // Note: The sample data in schema.sql uses plain text passwords
+    // For real passwords, we use bcrypt.compare()
+    // We handle both cases for backwards compatibility
+    const isValidPassword =
+      user.PasswordHash === currentPassword ||
+      (await bcrypt.compare(currentPassword, user.PasswordHash));
+    if (!isValidPassword) {
+      await connection.end();
+      return res.status(401).json({ error: "Current password is incorrect" });
+    }
+
+    // Hash new password
+    const saltRounds = 10;
+    const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update password in database
+    await connection.execute(
+      `UPDATE ${userTable} SET PasswordHash = ? WHERE ${idField} = ?`,
+      [newPasswordHash, user[idField]]
+    );
+
+    await connection.end();
+    res.json({ message: "Password changed successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 /* ===================================
    ADMIN & NUTRITIONIST MANAGEMENT
    Create admin/nutritionist accounts

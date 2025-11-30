@@ -11,6 +11,7 @@ import BrowseMenus from './pages/BrowseMenus';
 import UserQuestions from './pages/UserQuestions';
 import NutritionistQuestions from './pages/NutritionistQuestions';
 import ManageAccounts from './pages/ManageAccounts';
+import ChangePassword from './pages/ChangePassword';
 
 export default function App() {
   const [authSession, setAuthSession] = useState<AuthSession>(null)
@@ -151,6 +152,39 @@ export default function App() {
           element={
             authSession && authSession.role === "admin" ? (
               <ManageAccounts sessionId={authSession.sessionId} onLogout={handleLogout} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/user/change-password"
+          element={
+            authSession && authSession.role === "user" ? (
+              <ChangePassword sessionId={authSession.sessionId} role={authSession.role} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/admin/change-password"
+          element={
+            authSession && authSession.role === "admin" ? (
+              <ChangePassword sessionId={authSession.sessionId} role={authSession.role} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/nutritionist/change-password"
+          element={
+            authSession && authSession.role === "nutritionist" ? (
+              <ChangePassword sessionId={authSession.sessionId} role={authSession.role} />
             ) : (
               <Navigate to="/" replace />
             )

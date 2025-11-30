@@ -95,6 +95,20 @@ export async function getCurrentUser(sessionId: string, role: Role) {
   return (await res.json()) as { role: Role; user: { id: number; firstName: string; lastName: string; email: string } }
 }
 
+// POST /api/auth/change-password
+export async function changePassword(sessionId: string, role: Role, currentPassword: string, newPassword: string, newPasswordConfirm: string) {
+  const res = await fetch(`${BASE}/auth/change-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, role, currentPassword, newPassword, newPasswordConfirm }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Failed to change password")
+  }
+  return (await res.json()) as { message: string }
+}
+
 // ===== QUESTIONS API =====
 
 // POST /api/questions
