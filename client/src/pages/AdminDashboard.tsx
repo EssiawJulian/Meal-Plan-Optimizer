@@ -96,50 +96,27 @@ export default function AdminDashboard({ user, onLogout }: Props) {
         <p style={{ color: "#666", marginBottom: 16 }}>
           Create and manage admin and nutritionist accounts
         </p>
-        <div style={{ display: "flex", gap: 12 }}>
-          <button
-            onClick={() => navigate('/admin/manage-accounts')}
-            style={{
-              padding: "10px 20px",
-              backgroundColor: "#007bff",
-              color: "white",
-              border: "none",
-              borderRadius: 4,
-              cursor: "pointer",
-              fontSize: 14,
-              fontWeight: 500
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#0056b3"
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#007bff"
-            }}
-          >
-            Manage Accounts
-          </button>
-          <button
-            onClick={() => navigate('/admin/change-password')}
-            style={{
-              padding: "10px 20px",
-              backgroundColor: "#6c757d",
-              color: "white",
-              border: "none",
-              borderRadius: 4,
-              cursor: "pointer",
-              fontSize: 14,
-              fontWeight: 500
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#5a6268"
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#6c757d"
-            }}
-          >
-            Change Password
-          </button>
-        </div>
+        <button
+          onClick={() => navigate('/admin/manage-accounts')}
+          style={{
+            padding: "10px 20px",
+            backgroundColor: "#007bff",
+            color: "white",
+            border: "none",
+            borderRadius: 4,
+            cursor: "pointer",
+            fontSize: 14,
+            fontWeight: 500
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#0056b3"
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "#007bff"
+          }}
+        >
+          Manage Accounts
+        </button>
       </div>
 
       <h2>Food Catalogue — Add & Delete</h2>

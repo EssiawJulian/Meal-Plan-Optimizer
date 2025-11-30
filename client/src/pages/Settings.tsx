@@ -73,8 +73,9 @@ export default function Settings({ authSession, onLogout }: Props) {
                 body: JSON.stringify({
                     sessionId: authSession?.sessionId,
                     role: authSession?.role,
-                    oldPassword,
+                    currentPassword: oldPassword,
                     newPassword,
+                    newPasswordConfirm: confirmPassword,
                 }),
             })
 

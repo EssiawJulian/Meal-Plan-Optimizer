@@ -397,11 +397,9 @@ app.post("/api/auth/change-password", async (req, res) => {
     }
 
     if (currentPassword === newPassword) {
-      return res
-        .status(400)
-        .json({
-          error: "New password must be different from current password",
-        });
+      return res.status(400).json({
+        error: "New password must be different from current password",
+      });
     }
 
     const connection = await mysql.createConnection(config);
@@ -943,86 +941,6 @@ app.put("/api/questions/:questionId/reply", async (req, res) => {
    SETTINGS & GOALS
    ========================== */
 
-// POST /api/auth/change-password
-app.post("/api/auth/change-password", async (req, res) => {
-  try {
-    const { sessionId, role, oldPassword, newPassword } = req.body || {};
-    if (!sessionId || !role || !oldPassword || !newPassword) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
-    const connection = await mysql.createConnection(config);
-    let tableName, idField, sessionTable;
-
-    if (role === "user") {
-      tableName = "Users";
-      idField = "UserID";
-      sessionTable = "UserSessions";
-    } else if (role === "admin") {
-      tableName = "Admin";
-      idField = "AdminID";
-      sessionTable = "AdminSessions";
-    } else if (role === "nutritionist") {
-      tableName = "Nutritionist";
-      idField = "NutritionistID";
-      sessionTable = "NutritionistSessions";
-    } else {
-      await connection.end();
-      return res.status(400).json({ error: "Invalid role" });
-    }
-
-    // Verify session
-    const [sessions] = await connection.execute(
-      `SELECT ${idField} FROM ${sessionTable} WHERE SessionID = ?`,
-      [sessionId]
-    );
-
-    if (sessions.length === 0) {
-      await connection.end();
-      return res.status(401).json({ error: "Invalid session" });
-    }
-
-    const userId = sessions[0][idField];
-
-    // Get current password hash
-    const [users] = await connection.execute(
-      `SELECT PasswordHash FROM ${tableName} WHERE ${idField} = ?`,
-      [userId]
-    );
-
-    if (users.length === 0) {
-      await connection.end();
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    const currentHash = users[0].PasswordHash;
-
-    // Verify old password
-    const isValid =
-      currentHash === oldPassword ||
-      (await bcrypt.compare(oldPassword, currentHash));
-
-    if (!isValid) {
-      await connection.end();
-      return res.status(401).json({ error: "Incorrect old password" });
-    }
-
-    // Hash new password
-    const newHash = await bcrypt.hash(newPassword, 10);
-
-    // Update password
-    await connection.execute(
-      `UPDATE ${tableName} SET PasswordHash = ? WHERE ${idField} = ?`,
-      [newHash, userId]
-    );
-
-    await connection.end();
-    res.json({ message: "Password updated successfully" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // GET /api/user/goals
 app.get("/api/user/goals", async (req, res) => {
   try {
@@ -1122,47 +1040,27 @@ app.listen(3000, () => {
   console.log("  POST   /api/setup-test               - apply full schema.sql");
 
   console.log("\n=== AUTH (Multi-role) ===");
-  console.log(
-    "  POST   /api/auth/signup              - user signup"
-  );
-  console.log(
-    "  POST   /api/auth/login               - login"
-  );
-  console.log(
-    "  POST   /api/auth/logout              - logout"
-  );
-  console.log(
-    "  GET    /api/auth/me                  - get current user"
-  );
-  console.log(
-    "  POST   /api/auth/change-password     - change password"
-  );
+  console.log("  POST   /api/auth/signup              - user signup");
+  console.log("  POST   /api/auth/login               - login");
+  console.log("  POST   /api/auth/logout              - logout");
+  console.log("  GET    /api/auth/me                  - get current user");
+  console.log("  POST   /api/auth/change-password     - change password");
 
   console.log("\n=== USER GOALS ===");
   console.log("  GET    /api/user/goals               - get user goals");
   console.log("  PUT    /api/user/goals               - update user goals");
 
   console.log("\n=== FOODS ===");
-  console.log(
-    "  GET    /api/foods?hallId=&limit=     - list foods"
-  );
+  console.log("  GET    /api/foods?hallId=&limit=     - list foods");
   console.log("  POST   /api/foods                    - add a food");
   console.log("  DELETE /api/foods/:foodId            - delete a food");
-  console.log(
-    "  GET    /api/halls                    - list halls"
-  );
+  console.log("  GET    /api/halls                    - list halls");
 
   console.log("\n=== QUESTIONS ===");
-  console.log(
-    "  POST   /api/questions               - create a question"
-  );
-  console.log(
-    "  GET    /api/questions/user/:userId  - get user questions"
-  );
+  console.log("  POST   /api/questions               - create a question");
+  console.log("  GET    /api/questions/user/:userId  - get user questions");
   console.log(
     "  GET    /api/questions/unanswered    - get unanswered questions"
   );
-  console.log(
-    "  PUT    /api/questions/:questionId/reply - reply to question"
-  );
+  console.log("  PUT    /api/questions/:questionId/reply - reply to question");
 });
