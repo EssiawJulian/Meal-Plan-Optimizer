@@ -18,20 +18,40 @@ const UserDashboard = ({ user, onLogout }: UserDashboardProps) => {
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h1>User Dashboard</h1>
-        <button
-          onClick={onLogout}
-          style={{
-            padding: '10px 20px',
-            fontSize: '16px',
-            backgroundColor: '#dc3545',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
-          Logout
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={() => navigate('/settings')}
+            style={{
+              padding: '10px',
+              fontSize: '16px',
+              backgroundColor: '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Settings"
+          >
+            ⚙️
+          </button>
+          <button
+            onClick={onLogout}
+            style={{
+              padding: '10px 20px',
+              fontSize: '16px',
+              backgroundColor: '#dc3545',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+            }}
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
       <p style={{ fontSize: '18px', color: '#666', marginBottom: '30px' }}>

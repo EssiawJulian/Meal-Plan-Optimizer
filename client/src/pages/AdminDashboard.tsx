@@ -50,19 +50,39 @@ export default function AdminDashboard({ user, onLogout }: Props) {
             Welcome, {user.firstName} {user.lastName}
           </p>
         </div>
-        <button
-          onClick={onLogout}
-          style={{
-            padding: "8px 16px",
-            backgroundColor: "#dc3545",
-            color: "white",
-            border: "none",
-            borderRadius: 4,
-            cursor: "pointer"
-          }}
-        >
-          Logout
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={() => navigate('/settings')}
+            style={{
+              padding: '8px 12px',
+              backgroundColor: '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: 4,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '16px'
+            }}
+            title="Settings"
+          >
+            ⚙️
+          </button>
+          <button
+            onClick={onLogout}
+            style={{
+              padding: "8px 16px",
+              backgroundColor: "#dc3545",
+              color: "white",
+              border: "none",
+              borderRadius: 4,
+              cursor: 'pointer'
+            }}
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
       <div style={{

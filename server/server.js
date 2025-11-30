@@ -939,6 +939,174 @@ app.put("/api/questions/:questionId/reply", async (req, res) => {
   }
 });
 
+/* ==========================
+   SETTINGS & GOALS
+   ========================== */
+
+// POST /api/auth/change-password
+app.post("/api/auth/change-password", async (req, res) => {
+  try {
+    const { sessionId, role, oldPassword, newPassword } = req.body || {};
+    if (!sessionId || !role || !oldPassword || !newPassword) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const connection = await mysql.createConnection(config);
+    let tableName, idField, sessionTable;
+
+    if (role === "user") {
+      tableName = "Users";
+      idField = "UserID";
+      sessionTable = "UserSessions";
+    } else if (role === "admin") {
+      tableName = "Admin";
+      idField = "AdminID";
+      sessionTable = "AdminSessions";
+    } else if (role === "nutritionist") {
+      tableName = "Nutritionist";
+      idField = "NutritionistID";
+      sessionTable = "NutritionistSessions";
+    } else {
+      await connection.end();
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
+    // Verify session
+    const [sessions] = await connection.execute(
+      `SELECT ${idField} FROM ${sessionTable} WHERE SessionID = ?`,
+      [sessionId]
+    );
+
+    if (sessions.length === 0) {
+      await connection.end();
+      return res.status(401).json({ error: "Invalid session" });
+    }
+
+    const userId = sessions[0][idField];
+
+    // Get current password hash
+    const [users] = await connection.execute(
+      `SELECT PasswordHash FROM ${tableName} WHERE ${idField} = ?`,
+      [userId]
+    );
+
+    if (users.length === 0) {
+      await connection.end();
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const currentHash = users[0].PasswordHash;
+
+    // Verify old password
+    const isValid =
+      currentHash === oldPassword ||
+      (await bcrypt.compare(oldPassword, currentHash));
+
+    if (!isValid) {
+      await connection.end();
+      return res.status(401).json({ error: "Incorrect old password" });
+    }
+
+    // Hash new password
+    const newHash = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await connection.execute(
+      `UPDATE ${tableName} SET PasswordHash = ? WHERE ${idField} = ?`,
+      [newHash, userId]
+    );
+
+    await connection.end();
+    res.json({ message: "Password updated successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/user/goals
+app.get("/api/user/goals", async (req, res) => {
+  try {
+    const { sessionId } = req.query;
+    if (!sessionId) {
+      return res.status(400).json({ error: "Session ID required" });
+    }
+
+    const connection = await mysql.createConnection(config);
+
+    // Verify session (User only)
+    const [sessions] = await connection.execute(
+      "SELECT UserID FROM UserSessions WHERE SessionID = ?",
+      [sessionId]
+    );
+
+    if (sessions.length === 0) {
+      await connection.end();
+      return res.status(401).json({ error: "Invalid session" });
+    }
+
+    const userId = sessions[0].UserID;
+
+    const [rows] = await connection.execute(
+      "SELECT Calories, Fat, Protein, Carbs FROM UserGoals WHERE UserID = ?",
+      [userId]
+    );
+
+    await connection.end();
+    res.json(rows[0] || null);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/user/goals
+app.put("/api/user/goals", async (req, res) => {
+  try {
+    const { sessionId, goals } = req.body || {};
+    if (!sessionId || !goals) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const connection = await mysql.createConnection(config);
+
+    // Verify session (User only)
+    const [sessions] = await connection.execute(
+      "SELECT UserID FROM UserSessions WHERE SessionID = ?",
+      [sessionId]
+    );
+
+    if (sessions.length === 0) {
+      await connection.end();
+      return res.status(401).json({ error: "Invalid session" });
+    }
+
+    const userId = sessions[0].UserID;
+    const { Calories, Fat, Protein, Carbs } = goals;
+
+    // Check if goals exist
+    const [existing] = await connection.execute(
+      "SELECT UserID FROM UserGoals WHERE UserID = ?",
+      [userId]
+    );
+
+    if (existing.length > 0) {
+      await connection.execute(
+        "UPDATE UserGoals SET Calories = ?, Fat = ?, Protein = ?, Carbs = ? WHERE UserID = ?",
+        [Calories, Fat, Protein, Carbs, userId]
+      );
+    } else {
+      await connection.execute(
+        "INSERT INTO UserGoals (UserID, Calories, Fat, Protein, Carbs) VALUES (?, ?, ?, ?, ?)",
+        [userId, Calories, Fat, Protein, Carbs]
+      );
+    }
+
+    await connection.end();
+    res.json({ message: "Goals updated successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 /* ========
    STARTUP
    ======== */
@@ -955,53 +1123,46 @@ app.listen(3000, () => {
 
   console.log("\n=== AUTH (Multi-role) ===");
   console.log(
-    "  POST   /api/auth/signup              - user signup (firstName, lastName, email, password)"
+    "  POST   /api/auth/signup              - user signup"
   );
   console.log(
-    "  POST   /api/auth/login               - login (email, password, role)"
+    "  POST   /api/auth/login               - login"
   );
   console.log(
-    "  POST   /api/auth/logout              - logout (sessionId, role)"
+    "  POST   /api/auth/logout              - logout"
   );
   console.log(
-    "  GET    /api/auth/me                  - get current user (sessionId, role)"
+    "  GET    /api/auth/me                  - get current user"
+  );
+  console.log(
+    "  POST   /api/auth/change-password     - change password"
   );
 
-  console.log("\n=== ADMIN MANAGEMENT (requires auth) ===");
-  console.log(
-    "  POST   /api/admin/create-admin       - create new admin (header: sessionId)"
-  );
-  console.log(
-    "  POST   /api/admin/create-nutritionist - create new nutritionist (header: sessionId)"
-  );
-  console.log(
-    "  GET    /api/admin/list-admins        - list all admins (header: sessionId)"
-  );
-  console.log(
-    "  GET    /api/admin/list-nutritionists - list all nutritionists (header: sessionId)"
-  );
+  console.log("\n=== USER GOALS ===");
+  console.log("  GET    /api/user/goals               - get user goals");
+  console.log("  PUT    /api/user/goals               - update user goals");
 
   console.log("\n=== FOODS ===");
   console.log(
-    "  GET    /api/foods?hallId=&limit=     - list foods (JOIN halls)"
+    "  GET    /api/foods?hallId=&limit=     - list foods"
   );
   console.log("  POST   /api/foods                    - add a food");
   console.log("  DELETE /api/foods/:foodId            - delete a food");
   console.log(
-    "  GET    /api/halls                    - list halls (for dropdowns)"
+    "  GET    /api/halls                    - list halls"
   );
 
   console.log("\n=== QUESTIONS ===");
   console.log(
-    "  POST   /api/questions               - create a question (user)"
+    "  POST   /api/questions               - create a question"
   );
   console.log(
-    "  GET    /api/questions/user/:userId  - get user's questions with replies"
+    "  GET    /api/questions/user/:userId  - get user questions"
   );
   console.log(
-    "  GET    /api/questions/unanswered    - get unanswered questions (nutritionist)"
+    "  GET    /api/questions/unanswered    - get unanswered questions"
   );
   console.log(
-    "  PUT    /api/questions/:questionId/reply - reply to a question (nutritionist)"
+    "  PUT    /api/questions/:questionId/reply - reply to question"
   );
 });
