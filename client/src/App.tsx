@@ -17,6 +17,7 @@ import UserQuestions from "./pages/UserQuestions";
 import NutritionistQuestions from "./pages/NutritionistQuestions";
 import ManageAccounts from "./pages/ManageAccounts";
 import Settings from "./pages/Settings";
+import MealPlans from "./pages/MealPlans";
 
 export default function App() {
   const [authSession, setAuthSession] = useState<AuthSession>(null);
@@ -138,6 +139,17 @@ export default function App() {
           element={
             authSession && authSession.role === "user" ? (
               <UserQuestions user={authSession.user} />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/user/meal-plans"
+          element={
+            authSession && authSession.role === "user" ? (
+              <MealPlans authSession={authSession} />
             ) : (
               <Navigate to="/" replace />
             )

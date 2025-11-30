@@ -85,10 +85,11 @@ CREATE TABLE UserGoals (
 );
 
 CREATE TABLE Meals (
-    MealID INT AUTO_INCREMENT PRIMARY KEY,
+    MealID INT NOT NULL,
     FoodID INT NOT NULL,
     UserID INT NOT NULL,
     MealType VARCHAR(50) NOT NULL,
+    PRIMARY KEY (MealID, FoodID),
     FOREIGN KEY (FoodID) REFERENCES FoodCatalogue(FoodID) ON DELETE CASCADE,
     FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE
 );
@@ -156,10 +157,20 @@ INSERT INTO UserGoals (UserID, Calories, Fat, Protein, Carbs) VALUES
 (4, 2500, 80, 100, 300),
 (5, 1600, 50, 60, 180);
 
--- Insert sample meal records linking users to foods eaten
-INSERT INTO Meals (FoodID, UserID, MealType) VALUES
-(9, 1, 'Lunch'),
-(14, 2, 'Snack'),
-(8, 3, 'Dinner'),
-(12, 4, 'Lunch'),
-(5, 5, 'Breakfast');
+-- Insert sample meal records
+-- Note: MealID groups multiple foods into one meal
+-- Example: MealID=1 contains multiple foods for Alice's lunch
+INSERT INTO Meals (MealID, FoodID, UserID, MealType) VALUES
+-- Alice's Lunch (MealID=1): Bacon Cheeseburger + Steak Fries
+(1, 9, 1, 'Lunch'),
+(1, 15, 1, 'Lunch'),
+-- Bob's Snack (MealID=2): Fresh Strawberries
+(2, 14, 2, 'Snack'),
+-- Charlie's Dinner (MealID=3): London Broil Steak + Hash Browns
+(3, 8, 3, 'Dinner'),
+(3, 7, 3, 'Dinner'),
+-- Dana's Lunch (MealID=4): Black Bean Burger
+(4, 12, 4, 'Lunch'),
+-- Evan's Breakfast (MealID=5): Buttermilk Biscuit + Scrambled Eggs
+(5, 5, 5, 'Breakfast'),
+(5, 4, 5, 'Breakfast');

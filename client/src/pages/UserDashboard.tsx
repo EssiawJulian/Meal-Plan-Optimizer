@@ -69,8 +69,29 @@ const UserDashboard = ({ user, onLogout }: UserDashboardProps) => {
         </p>
 
         <ul style={{ fontSize: '16px', lineHeight: '2' }}>
-          <li>View and manage your meal plans</li>
-          <li>Track your nutrition goals</li>
+          <li>
+            <button
+              onClick={() => navigate('/user/meal-plans')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#007bff',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                fontSize: 'inherit',
+                padding: 0,
+                fontFamily: 'inherit',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#0056b3';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = '#007bff';
+              }}
+            >
+              View and manage your meal plans
+            </button>
+          </li>
           <li>
             <button
               onClick={() => navigate('/user/browse-menus')}

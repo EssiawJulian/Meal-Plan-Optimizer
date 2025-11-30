@@ -1,10 +1,12 @@
 // import required packages (same style as demo)
+require("dotenv").config();
 const express = require("express");
 const mysql = require("mysql2/promise");
 const fs = require("fs");
 const path = require("path");
 const bcrypt = require("bcrypt");
 const cors = require("cors");
+const { GoogleGenAI } = require("@google/genai");
 const {
   verifyAdmin,
   verifyNutritionist,
@@ -1025,6 +1027,321 @@ app.put("/api/user/goals", async (req, res) => {
   }
 });
 
+/* ==========================
+   MEAL PLANS (AI-Generated)
+   ========================== */
+
+// Initialize Gemini AI (API key read from GEMINI_API_KEY environment variable)
+const genAI = new GoogleGenAI({});
+
+// POST /api/meal-plans/generate
+// body: { sessionId, mealType, date? }
+app.post("/api/meal-plans/generate", async (req, res) => {
+  try {
+    const { sessionId, mealType, date } = req.body || {};
+    if (!sessionId || !mealType) {
+      return res
+        .status(400)
+        .json({ error: "sessionId and mealType are required" });
+    }
+
+    const connection = await mysql.createConnection(config);
+
+    // Verify session
+    const [sessions] = await connection.execute(
+      "SELECT UserID FROM UserSessions WHERE SessionID = ?",
+      [sessionId]
+    );
+
+    if (sessions.length === 0) {
+      await connection.end();
+      return res.status(401).json({ error: "Invalid session" });
+    }
+
+    const userId = sessions[0].UserID;
+
+    // Get user's nutrition goals
+    const [goals] = await connection.execute(
+      "SELECT Calories, Fat, Protein, Carbs FROM UserGoals WHERE UserID = ?",
+      [userId]
+    );
+
+    if (goals.length === 0) {
+      await connection.end();
+      return res.status(400).json({
+        error: "Please set your nutrition goals in Settings first",
+      });
+    }
+
+    const userGoals = goals[0];
+
+    // Get all available foods from dining halls
+    const [foods] = await connection.execute(`
+      SELECT fc.FoodID, fc.FoodName, fc.Calories, fc.Fat, fc.Protein, fc.Carbs,
+             fc.ServingSize, dh.HallName
+      FROM FoodCatalogue fc
+      LEFT JOIN DinningHalls dh ON fc.HallID = dh.HallID
+      ORDER BY fc.FoodID
+    `);
+
+    if (foods.length === 0) {
+      await connection.end();
+      return res
+        .status(400)
+        .json({ error: "No foods available in the system" });
+    }
+
+    // Format foods for Gemini prompt
+    const foodsList = foods
+      .map(
+        (f) =>
+          `ID:${f.FoodID} "${f.FoodName}" (${f.Calories}cal, ${
+            f.Protein
+          }g protein, ${f.Carbs}g carbs, ${f.Fat}g fat, Serving: ${
+            f.ServingSize
+          }) [${f.HallName || "N/A"}]`
+      )
+      .join("\n");
+
+    // Create prompt for Gemini
+    const prompt = `You are a nutritionist AI assistant. Generate a healthy meal plan for ${mealType}.
+
+User's Daily Nutrition Goals:
+- Calories: ${userGoals.Calories}
+- Protein: ${userGoals.Protein}g
+- Carbs: ${userGoals.Carbs}g
+- Fat: ${userGoals.Fat}g
+
+For ${mealType}, aim for approximately:
+- ${
+      mealType === "Breakfast"
+        ? "25%"
+        : mealType === "Lunch"
+        ? "35%"
+        : mealType === "Dinner"
+        ? "35%"
+        : "5%"
+    } of daily calories
+- Balanced macronutrients
+
+Available Foods (use ONLY these):
+${foodsList}
+
+IMPORTANT: You MUST respond with ONLY valid JSON, no other text. Use this EXACT format:
+{
+  "foodIds": [1, 2, 3],
+  "totals": {
+    "calories": 500,
+    "protein": 25,
+    "carbs": 60,
+    "fat": 15
+  },
+  "reasoning": "Brief explanation of why these foods were chosen"
+}
+
+Select 2-4 food items by their ID that create a balanced, nutritious ${mealType}. Return ONLY the JSON response.`;
+
+    // Call Gemini API
+    const result = await genAI.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+    const responseText = result.text;
+
+    // Parse JSON response
+    let mealPlan;
+    try {
+      // Remove markdown code blocks if present
+      const cleanJson = responseText
+        .replace(/```json\n?/g, "")
+        .replace(/```\n?/g, "")
+        .trim();
+      mealPlan = JSON.parse(cleanJson);
+    } catch (parseError) {
+      await connection.end();
+      return res.status(500).json({
+        error: "Failed to parse AI response",
+        details: responseText,
+      });
+    }
+
+    // Validate that all food IDs exist
+    const validFoodIds = foods.map((f) => f.FoodID);
+    const invalidIds = mealPlan.foodIds.filter(
+      (id) => !validFoodIds.includes(id)
+    );
+
+    if (invalidIds.length > 0) {
+      await connection.end();
+      return res.status(400).json({
+        error: "AI returned invalid food IDs",
+        invalidIds,
+      });
+    }
+
+    // Get the next MealID (group ID)
+    const [maxMealId] = await connection.execute(
+      "SELECT COALESCE(MAX(MealID), 0) + 1 as NextMealID FROM Meals"
+    );
+    const newMealId = maxMealId[0].NextMealID;
+
+    // Insert meal records for each food
+    for (const foodId of mealPlan.foodIds) {
+      await connection.execute(
+        "INSERT INTO Meals (MealID, FoodID, UserID, MealType) VALUES (?, ?, ?, ?)",
+        [newMealId, foodId, userId, mealType]
+      );
+    }
+
+    // Fetch the created meal with food details
+    const [createdMeal] = await connection.execute(
+      `
+      SELECT m.MealID, m.MealType,
+             fc.FoodID, fc.FoodName, fc.Calories, fc.Fat, fc.Protein, fc.Carbs, fc.ServingSize,
+             dh.HallName
+      FROM Meals m
+      JOIN FoodCatalogue fc ON m.FoodID = fc.FoodID
+      LEFT JOIN DinningHalls dh ON fc.HallID = dh.HallID
+      WHERE m.MealID = ? AND m.UserID = ?
+    `,
+      [newMealId, userId]
+    );
+
+    await connection.end();
+
+    res.status(201).json({
+      mealId: newMealId,
+      mealType: mealType,
+      foods: createdMeal,
+      totals: mealPlan.totals,
+      reasoning: mealPlan.reasoning,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/meal-plans?sessionId=xxx
+// Get all meal plans for the authenticated user
+app.get("/api/meal-plans", async (req, res) => {
+  try {
+    const { sessionId } = req.query;
+    if (!sessionId) {
+      return res.status(400).json({ error: "sessionId is required" });
+    }
+
+    const connection = await mysql.createConnection(config);
+
+    // Verify session
+    const [sessions] = await connection.execute(
+      "SELECT UserID FROM UserSessions WHERE SessionID = ?",
+      [sessionId]
+    );
+
+    if (sessions.length === 0) {
+      await connection.end();
+      return res.status(401).json({ error: "Invalid session" });
+    }
+
+    const userId = sessions[0].UserID;
+
+    // Get all meals for user
+    const [meals] = await connection.execute(
+      `
+      SELECT m.MealID, m.MealType,
+             fc.FoodID, fc.FoodName, fc.Calories, fc.Fat, fc.Protein, fc.Carbs, fc.ServingSize,
+             dh.HallName
+      FROM Meals m
+      JOIN FoodCatalogue fc ON m.FoodID = fc.FoodID
+      LEFT JOIN DinningHalls dh ON fc.HallID = dh.HallID
+      WHERE m.UserID = ?
+      ORDER BY m.MealID DESC, fc.FoodName ASC
+    `,
+      [userId]
+    );
+
+    // Group meals by MealID
+    const groupedMeals = meals.reduce((acc, meal) => {
+      if (!acc[meal.MealID]) {
+        acc[meal.MealID] = {
+          mealId: meal.MealID,
+          mealType: meal.MealType,
+          foods: [],
+          totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+        };
+      }
+
+      acc[meal.MealID].foods.push({
+        foodId: meal.FoodID,
+        foodName: meal.FoodName,
+        calories: meal.Calories,
+        protein: meal.Protein,
+        carbs: meal.Carbs,
+        fat: meal.Fat,
+        servingSize: meal.ServingSize,
+        hallName: meal.HallName,
+      });
+
+      // Update totals
+      acc[meal.MealID].totals.calories += meal.Calories;
+      acc[meal.MealID].totals.protein += meal.Protein;
+      acc[meal.MealID].totals.carbs += meal.Carbs;
+      acc[meal.MealID].totals.fat += meal.Fat;
+
+      return acc;
+    }, {});
+
+    await connection.end();
+    res.json(Object.values(groupedMeals));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/meal-plans/:mealId?sessionId=xxx
+// Delete a meal plan
+app.delete("/api/meal-plans/:mealId", async (req, res) => {
+  try {
+    const { mealId } = req.params;
+    const { sessionId } = req.query;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: "sessionId is required" });
+    }
+
+    const connection = await mysql.createConnection(config);
+
+    // Verify session
+    const [sessions] = await connection.execute(
+      "SELECT UserID FROM UserSessions WHERE SessionID = ?",
+      [sessionId]
+    );
+
+    if (sessions.length === 0) {
+      await connection.end();
+      return res.status(401).json({ error: "Invalid session" });
+    }
+
+    const userId = sessions[0].UserID;
+
+    // Delete all foods in this meal (verify it belongs to user)
+    const [result] = await connection.execute(
+      "DELETE FROM Meals WHERE MealID = ? AND UserID = ?",
+      [mealId, userId]
+    );
+
+    await connection.end();
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Meal plan not found" });
+    }
+
+    res.json({ message: "Meal plan deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 /* ========
    STARTUP
    ======== */
@@ -1063,4 +1380,9 @@ app.listen(3000, () => {
     "  GET    /api/questions/unanswered    - get unanswered questions"
   );
   console.log("  PUT    /api/questions/:questionId/reply - reply to question");
+
+  console.log("\n=== MEAL PLANS (AI) ===");
+  console.log("  POST   /api/meal-plans/generate     - generate AI meal plan");
+  console.log("  GET    /api/meal-plans              - get user meal plans");
+  console.log("  DELETE /api/meal-plans/:mealId      - delete meal plan");
 });
