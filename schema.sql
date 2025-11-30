@@ -83,20 +83,6 @@ CREATE TABLE UserGoals (
     Carbs INT UNSIGNED NOT NULL,
     FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE
 );
-
-CREATE TABLE Meals (
-    MealID INT NOT NULL,
-    FoodID INT NOT NULL,
-    UserID INT NOT NULL,
-    MealType VARCHAR(50) NOT NULL,
-    PRIMARY KEY (MealID, FoodID),
-    FOREIGN KEY (FoodID) REFERENCES FoodCatalogue(FoodID) ON DELETE CASCADE,
-    FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE
-);
-
-
--- Insert sample users
-INSERT INTO Users (FirstName, LastName, Email, PasswordHash) VALUES
 ('Alice', 'Smith', 'alice.smith@example.com', 'notrealpassword'),
 ('Bob', 'Johnson', 'bob.johnson@example.com', 'notrealpassword'),
 ('Charlie', 'Lee', 'charlie.lee@example.com', 'notrealpassword'),

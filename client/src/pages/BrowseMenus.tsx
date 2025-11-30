@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listHalls, listFoods } from '../api';
+import { listHalls, listFoods, logMeal } from '../api';
 import '../styles/global.css';
 
 interface DiningHall {
@@ -16,7 +16,7 @@ interface FoodItem {
   Protein: number;
   Carbs: number;
   ServingSize: string;
-  HallName?: string;
+  HallName?: string | null;
 }
 
 const BrowseMenus = () => {
@@ -27,6 +27,7 @@ const BrowseMenus = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [loggingId, setLoggingId] = useState<number | null>(null);
 
   // Fetch dining halls on component mount
   useEffect(() => {
@@ -62,6 +63,31 @@ const BrowseMenus = () => {
       setError('Failed to load food items');
       setLoading(false);
       console.error(err);
+    }
+  };
+
+  const handleLogMeal = async (food: FoodItem) => {
+    const storedSession = localStorage.getItem('authSession');
+    if (!storedSession) {
+      alert("Please login to log meals");
+      return;
+    }
+
+    try {
+      setLoggingId(food.FoodID);
+      const { sessionId } = JSON.parse(storedSession);
+      await logMeal(sessionId, food.FoodID, "Snack"); // Defaulting to Snack for now
+      alert(`Added ${food.FoodName} to your daily log!`);
+    } catch (err: any) {
+      if (err.message === "Invalid session") {
+        alert("Your session has expired. Please log in again.");
+        localStorage.removeItem('authSession');
+        navigate('/');
+      } else {
+        alert(err.message || "Failed to log meal");
+      }
+    } finally {
+      setLoggingId(null);
     }
   };
 
@@ -162,7 +188,7 @@ const BrowseMenus = () => {
           <h2 style={{ marginBottom: '15px', fontSize: '24px' }}>
             Menu Items
           </h2>
-          
+
           {/* Search Bar */}
           <input
             type="text"
@@ -206,6 +232,11 @@ const BrowseMenus = () => {
                     backgroundColor: '#fff',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                     transition: 'box-shadow 0.2s',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '20px'
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
@@ -214,54 +245,77 @@ const BrowseMenus = () => {
                     e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
                   }}
                 >
-                  <h3 style={{ marginTop: 0, marginBottom: '8px', color: '#007bff', fontSize: '20px' }}>
-                    {food.FoodName}
-                  </h3>
-                  <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px' }}>
-                    <strong>Serving Size:</strong> {food.ServingSize}
-                  </p>
-                  
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
-                    gap: '15px',
-                    marginTop: '15px',
-                    paddingTop: '15px',
-                    borderTop: '1px solid #e9ecef'
-                  }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>
-                        <strong>CALORIES</strong>
+                  <div style={{ flex: 1, minWidth: '250px' }}>
+                    <h3 style={{ marginTop: 0, marginBottom: '8px', color: '#007bff', fontSize: '20px' }}>
+                      {food.FoodName}
+                    </h3>
+                    <p style={{ color: '#666', marginBottom: '15px', fontSize: '14px' }}>
+                      <strong>Serving Size:</strong> {food.ServingSize}
+                    </p>
+
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))',
+                      gap: '10px',
+                      marginTop: '15px',
+                      paddingTop: '15px',
+                      borderTop: '1px solid #e9ecef'
+                    }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>CALORIES</div>
+                        <div style={{ fontSize: '18px', color: '#007bff', fontWeight: 'bold' }}>{food.Calories}</div>
                       </div>
-                      <div style={{ fontSize: '24px', color: '#007bff', fontWeight: 'bold' }}>
-                        {food.Calories}
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>PROTEIN</div>
+                        <div style={{ fontSize: '18px', color: '#28a745', fontWeight: 'bold' }}>{food.Protein}g</div>
                       </div>
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>
-                        <strong>PROTEIN</strong>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>CARBS</div>
+                        <div style={{ fontSize: '18px', color: '#ffc107', fontWeight: 'bold' }}>{food.Carbs}g</div>
                       </div>
-                      <div style={{ fontSize: '24px', color: '#28a745', fontWeight: 'bold' }}>
-                        {food.Protein}g
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>
-                        <strong>CARBS</strong>
-                      </div>
-                      <div style={{ fontSize: '24px', color: '#ffc107', fontWeight: 'bold' }}>
-                        {food.Carbs}g
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>
-                        <strong>FAT</strong>
-                      </div>
-                      <div style={{ fontSize: '24px', color: '#dc3545', fontWeight: 'bold' }}>
-                        {food.Fat}g
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>FAT</div>
+                        <div style={{ fontSize: '18px', color: '#dc3545', fontWeight: 'bold' }}>{food.Fat}g</div>
                       </div>
                     </div>
                   </div>
+
+                  <button
+                    onClick={() => handleLogMeal(food)}
+                    disabled={loggingId === food.FoodID}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#10b981', // Modern emerald green
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '20px',
+                      cursor: loggingId === food.FoodID ? 'wait' : 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      whiteSpace: 'nowrap',
+                      opacity: loggingId === food.FoodID ? 0.7 : 1,
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (loggingId !== food.FoodID) {
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = '0 4px 6px rgba(16, 185, 129, 0.3)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (loggingId !== food.FoodID) {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(16, 185, 129, 0.2)';
+                      }
+                    }}
+                  >
+                    <span>{loggingId === food.FoodID ? 'Adding...' : 'Add'}</span>
+                    {loggingId !== food.FoodID && <span style={{ fontSize: '16px', lineHeight: 1 }}>+</span>}
+                  </button>
                 </div>
               ))}
             </div>
