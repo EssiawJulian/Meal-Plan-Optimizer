@@ -208,3 +208,66 @@ export async function listNutritionists(sessionId: string) {
   }
   return (await res.json()) as Array<{ NutritionistID: number; FirstName: string; LastName: string; Email: string }>
 }
+
+// ===== MEALS / LOGGING API =====
+
+export interface MealLog {
+  MealID: number;
+  MealType: string;
+  LogDate: string;
+  FoodName: string;
+  Calories: number;
+  Protein: number;
+  Carbs: number;
+  Fat: number;
+  ServingSize: string;
+}
+
+// POST /api/meals
+export async function logMeal(sessionId: string, foodId: number, mealType?: string) {
+  const res = await fetch(`${BASE}/meals`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, foodId, mealType }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Failed to log meal")
+  }
+}
+
+// GET /api/meals
+export async function getMeals(sessionId: string, date?: string) {
+  let url = `${BASE}/meals?sessionId=${sessionId}`;
+  if (date) {
+    url += `&date=${date}`;
+  }
+  const res = await fetch(url);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Failed to load meals")
+  }
+  return (await res.json()) as MealLog[]
+}
+
+// PUT /api/meals/:mealId
+export async function updateMeal(mealId: number, updates: { mealType: string }) {
+  const res = await fetch(`${BASE}/meals/${mealId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Failed to update meal")
+  }
+}
+
+// DELETE /api/meals/:mealId
+export async function deleteMeal(mealId: number) {
+  const res = await fetch(`${BASE}/meals/${mealId}`, { method: "DELETE" })
+  if (!res.ok && res.status !== 204) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || "Failed to delete meal")
+  }
+}

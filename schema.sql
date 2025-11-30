@@ -89,10 +89,10 @@ CREATE TABLE Meals (
     FoodID INT NOT NULL,
     UserID INT NOT NULL,
     MealType VARCHAR(50) NOT NULL,
+    LogDate DATE NOT NULL DEFAULT (CURRENT_DATE),
     FOREIGN KEY (FoodID) REFERENCES FoodCatalogue(FoodID) ON DELETE CASCADE,
     FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE
 );
-
 
 -- Insert sample users
 INSERT INTO Users (FirstName, LastName, Email, PasswordHash) VALUES
