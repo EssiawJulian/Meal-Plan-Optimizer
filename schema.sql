@@ -111,9 +111,10 @@ CREATE TABLE MealPlans (
 );
 
 CREATE TABLE MealPlanItems (
+    ItemID INT AUTO_INCREMENT PRIMARY KEY,
     PlanID INT NOT NULL,
     FoodID INT NOT NULL,
-    PRIMARY KEY (PlanID, FoodID),
+    MealType VARCHAR(50) NOT NULL DEFAULT 'Unspecified',
     FOREIGN KEY (PlanID) REFERENCES MealPlans(PlanID) ON DELETE CASCADE,
     FOREIGN KEY (FoodID) REFERENCES FoodCatalogue(FoodID)
 );
@@ -205,8 +206,8 @@ INSERT INTO FoodLogs (UserID, FoodID, MealType, LogDate) VALUES
 
 -- Insert sample meal plans (AI Suggestions)
 INSERT INTO MealPlans (PlanID, UserID, MealType) VALUES
-(1, 1, 'Lunch');
+(1, 1, 'Full Day');
 
-INSERT INTO MealPlanItems (PlanID, FoodID) VALUES
-(1, 9), -- Bacon Cheeseburger
-(1, 15); -- Steak Fries
+INSERT INTO MealPlanItems (PlanID, FoodID, MealType) VALUES
+(1, 9, 'Lunch'), -- Bacon Cheeseburger
+(1, 15, 'Lunch'); -- Steak Fries

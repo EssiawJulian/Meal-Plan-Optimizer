@@ -129,57 +129,39 @@ const UserDashboard = ({ user, onLogout }: UserDashboardProps) => {
       </div>
 
       {/* Main Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 350px',
-        gap: '30px',
-        alignItems: 'start'
-      }}>
+      <div className="dashboard-grid">
 
-        {/* Left Column: Action Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-          <DashboardCard
-            title="Browse Menus"
-            subtitle="See what's cooking in the dining halls today."
-            onClick={() => navigate('/user/browse-menus')}
-            color="#4ecdc4" // Teal
-            icon="🍽️"
-          />
+        {/* 1. Browse Menus */}
+        <DashboardCard
+          title="Browse Menus"
+          subtitle="See what's cooking in the dining halls today."
+          onClick={() => navigate('/user/browse-menus')}
+          color="#4ecdc4" // Teal
+          icon="🍽️"
+        />
 
-          <DashboardCard
-            title="Ask a Nutritionist"
-            subtitle="Get expert advice on your diet and health."
-            onClick={() => navigate('/user/questions')}
-            color="#1a535c" // Dark Teal/Blue
-            icon="💬"
-          />
-
-          <DashboardCard
-            title="AI Meal Plans"
-            subtitle="View and manage your AI-generated meal plans."
-            onClick={() => navigate('/user/meal-plans')}
-            color="#ff9f43" // Orange
-            icon="🤖"
-          />
-
-          {/* Placeholder for future features */}
-          <div style={{
-            gridColumn: '1 / -1',
-            backgroundColor: '#f8f9fa',
-            borderRadius: '16px',
-            padding: '30px',
-            border: '2px dashed #dee2e6',
-            textAlign: 'center',
-            color: '#adb5bd'
-          }}>
-            <h3 style={{ margin: 0 }}>More features coming soon...</h3>
-          </div>
-        </div>
-
-        {/* Right Column: Nutrition Widget */}
-        <div style={{ position: 'sticky', top: '20px' }}>
+        {/* 2. Daily Targets */}
+        <div style={{ height: '100%' }}>
           <NutritionProgress goals={goals} current={currentNutrition} />
         </div>
+
+        {/* 3. Ask a Nutritionist */}
+        <DashboardCard
+          title="Ask a Nutritionist"
+          subtitle="Get expert advice on your diet and health."
+          onClick={() => navigate('/user/questions')}
+          color="#1a535c" // Dark Teal/Blue
+          icon="💬"
+        />
+
+        {/* 4. AI Meal Plans */}
+        <DashboardCard
+          title="AI Meal Plans"
+          subtitle="View and manage your AI-generated meal plans."
+          onClick={() => navigate('/user/meal-plans')}
+          color="#ff9f43" // Orange
+          icon="🤖"
+        />
 
       </div>
     </div>

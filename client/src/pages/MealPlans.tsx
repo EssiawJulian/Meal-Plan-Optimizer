@@ -2,25 +2,33 @@ import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import type { AuthSession } from "../type"
 
+type FoodItem = {
+    foodId: number
+    foodName: string
+    calories: number
+    protein: number
+    carbs: number
+    fat: number
+    servingSize: string
+    hallName: string
+    sectionType: string
+}
+
 type MealPlan = {
     mealId: number
     mealType: string
-    foods: Array<{
-        foodId: number
-        foodName: string
-        calories: number
-        protein: number
-        carbs: number
-        fat: number
-        servingSize: string
-        hallName: string
-    }>
+    foods: FoodItem[]
     totals: {
         calories: number
         protein: number
         carbs: number
         fat: number
     }
+}
+
+type DiningHall = {
+    HallID: number
+    HallName: string
 }
 
 type Props = {
@@ -34,7 +42,10 @@ export default function MealPlans({ authSession }: Props) {
     const [generating, setGenerating] = useState(false)
     const [error, setError] = useState("")
     const [success, setSuccess] = useState("")
-    const [selectedMealType, setSelectedMealType] = useState("Breakfast")
+
+    // New state for dining halls
+    const [halls, setHalls] = useState<DiningHall[]>([])
+    const [selectedHalls, setSelectedHalls] = useState<number[]>([])
 
     useEffect(() => {
         if (!authSession || authSession.role !== "user") {
@@ -42,7 +53,22 @@ export default function MealPlans({ authSession }: Props) {
             return
         }
         fetchMealPlans()
+        fetchHalls()
     }, [authSession, navigate])
+
+    async function fetchHalls() {
+        try {
+            const res = await fetch("http://localhost:3000/api/halls")
+            if (res.ok) {
+                const data = await res.json()
+                setHalls(data)
+                // Default select all
+                setSelectedHalls(data.map((h: DiningHall) => h.HallID))
+            }
+        } catch (err) {
+            console.error("Failed to fetch halls", err)
+        }
+    }
 
     async function fetchMealPlans() {
         try {
@@ -62,10 +88,24 @@ export default function MealPlans({ authSession }: Props) {
         }
     }
 
+    function handleHallToggle(hallId: number) {
+        setSelectedHalls(prev =>
+            prev.includes(hallId)
+                ? prev.filter(id => id !== hallId)
+                : [...prev, hallId]
+        )
+    }
+
     async function handleGenerateMeal(e: React.FormEvent) {
         e.preventDefault()
         setError("")
         setSuccess("")
+
+        if (selectedHalls.length === 0) {
+            setError("Please select at least one dining hall")
+            return
+        }
+
         setGenerating(true)
 
         try {
@@ -74,14 +114,14 @@ export default function MealPlans({ authSession }: Props) {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     sessionId: authSession?.sessionId,
-                    mealType: selectedMealType,
+                    hallIds: selectedHalls
                 }),
             })
 
             const data = await res.json()
 
             if (res.ok) {
-                setSuccess(`Successfully generated ${selectedMealType} plan!`)
+                setSuccess("Successfully generated full day meal plan!")
                 await fetchMealPlans()
             } else {
                 setError(data.error || "Failed to generate meal plan")
@@ -115,6 +155,16 @@ export default function MealPlans({ authSession }: Props) {
         }
     }
 
+    // Helper to calculate section totals
+    function getSectionTotals(foods: FoodItem[]) {
+        return foods.reduce((acc, food) => ({
+            calories: acc.calories + food.calories,
+            protein: acc.protein + food.protein,
+            carbs: acc.carbs + food.carbs,
+            fat: acc.fat + food.fat
+        }), { calories: 0, protein: 0, carbs: 0, fat: 0 })
+    }
+
     if (!authSession) return null
 
     return (
@@ -139,41 +189,45 @@ export default function MealPlans({ authSession }: Props) {
             )}
 
             <div style={{ background: "#f9f9f9", padding: "1.5rem", borderRadius: "8px", marginBottom: "2rem" }}>
-                <h2 style={{ marginBottom: "1rem" }}>Generate New Meal Plan</h2>
-                <form onSubmit={handleGenerateMeal} style={{ display: "flex", gap: "1rem", alignItems: "flex-end" }}>
-                    <div style={{ flex: 1 }}>
+                <h2 style={{ marginBottom: "1rem" }}>Generate Full Day Plan</h2>
+                <form onSubmit={handleGenerateMeal}>
+                    <div style={{ marginBottom: "1rem" }}>
                         <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>
-                            Meal Type
+                            Select Dining Halls:
                         </label>
-                        <select
-                            value={selectedMealType}
-                            onChange={(e) => setSelectedMealType(e.target.value)}
-                            style={{ width: "100%", padding: "0.5rem", fontSize: "1rem" }}
-                        >
-                            <option value="Breakfast">Breakfast</option>
-                            <option value="Lunch">Lunch</option>
-                            <option value="Dinner">Dinner</option>
-                            <option value="Snack">Snack</option>
-                        </select>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
+                            {halls.map(hall => (
+                                <label key={hall.HallID} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedHalls.includes(hall.HallID)}
+                                        onChange={() => handleHallToggle(hall.HallID)}
+                                    />
+                                    {hall.HallName}
+                                </label>
+                            ))}
+                        </div>
                     </div>
+
                     <button
                         type="submit"
                         disabled={generating}
                         style={{
-                            padding: "0.5rem 1.5rem",
+                            padding: "0.75rem 2rem",
                             background: generating ? "#999" : "#4CAF50",
                             color: "#fff",
                             border: "none",
                             borderRadius: "4px",
                             cursor: generating ? "not-allowed" : "pointer",
                             fontSize: "1rem",
+                            fontWeight: "bold"
                         }}
                     >
-                        {generating ? "Generating..." : "Generate with AI"}
+                        {generating ? "Generating Full Day Plan..." : "Generate Plan with AI"}
                     </button>
                 </form>
                 <p style={{ marginTop: "0.5rem", fontSize: "0.9rem", color: "#666" }}>
-                    AI will create a balanced meal plan based on your nutrition goals
+                    AI will create a balanced Breakfast, Lunch, Dinner, and Snack plan based on your nutrition goals.
                 </p>
             </div>
 
@@ -188,7 +242,7 @@ export default function MealPlans({ authSession }: Props) {
                     </p>
                 </div>
             ) : (
-                <div style={{ display: "grid", gap: "1.5rem" }}>
+                <div style={{ display: "grid", gap: "2rem" }}>
                     {mealPlans.map((plan) => (
                         <div
                             key={plan.mealId}
@@ -200,13 +254,15 @@ export default function MealPlans({ authSession }: Props) {
                                 boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
                             }}
                         >
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                                <h3 style={{ margin: 0, color: "#333" }}>
-                                    {plan.mealType}
-                                    <span style={{ fontSize: "0.8rem", color: "#999", marginLeft: "1rem" }}>
-                                        Plan #{plan.mealId}
-                                    </span>
-                                </h3>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", borderBottom: "1px solid #eee", paddingBottom: "1rem" }}>
+                                <div>
+                                    <h3 style={{ margin: 0, color: "#333" }}>
+                                        {plan.mealType}
+                                        <span style={{ fontSize: "0.8rem", color: "#999", marginLeft: "1rem" }}>
+                                            Plan #{plan.mealId}
+                                        </span>
+                                    </h3>
+                                </div>
                                 <button
                                     onClick={() => handleDeleteMeal(plan.mealId)}
                                     style={{
@@ -218,41 +274,55 @@ export default function MealPlans({ authSession }: Props) {
                                         cursor: "pointer",
                                     }}
                                 >
-                                    Delete
+                                    Delete Plan
                                 </button>
                             </div>
 
-                            <div style={{ marginBottom: "1rem" }}>
-                                <h4 style={{ marginBottom: "0.5rem", color: "#555" }}>Foods:</h4>
-                                {plan.foods.map((food, idx) => (
-                                    <div
-                                        key={idx}
-                                        style={{
-                                            padding: "0.75rem",
-                                            background: "#f9f9f9",
-                                            borderRadius: "4px",
-                                            marginBottom: "0.5rem",
-                                        }}
-                                    >
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <div>
-                                                <strong>{food.foodName}</strong>
-                                                <span style={{ color: "#666", marginLeft: "0.5rem" }}>
-                                                    ({food.servingSize})
-                                                </span>
-                                                {food.hallName && (
-                                                    <span style={{ color: "#999", marginLeft: "0.5rem", fontSize: "0.9rem" }}>
-                                                        - {food.hallName}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div style={{ fontSize: "0.9rem", color: "#666" }}>
-                                                {food.calories} cal | P: {food.protein}g | C: {food.carbs}g | F: {food.fat}g
+                            {/* Sections */}
+                            {["Breakfast", "Lunch", "Dinner", "Snack"].map(section => {
+                                const sectionFoods = plan.foods.filter(f => f.sectionType === section)
+                                if (sectionFoods.length === 0) return null
+                                const sectionTotals = getSectionTotals(sectionFoods)
+
+                                return (
+                                    <div key={section} style={{ marginBottom: "1.5rem" }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", background: "#f0f0f0", padding: "0.5rem", borderRadius: "4px" }}>
+                                            <h4 style={{ margin: 0, color: "#444" }}>{section}</h4>
+                                            <div style={{ fontSize: "0.85rem", color: "#666" }}>
+                                                {sectionTotals.calories} cal | P: {sectionTotals.protein}g | C: {sectionTotals.carbs}g | F: {sectionTotals.fat}g
                                             </div>
                                         </div>
+
+                                        {sectionFoods.map((food, idx) => (
+                                            <div
+                                                key={idx}
+                                                style={{
+                                                    padding: "0.5rem 0.75rem",
+                                                    borderBottom: "1px solid #f0f0f0",
+                                                    display: "flex",
+                                                    justifyContent: "space-between",
+                                                    alignItems: "center"
+                                                }}
+                                            >
+                                                <div>
+                                                    <strong>{food.foodName}</strong>
+                                                    <span style={{ color: "#666", marginLeft: "0.5rem", fontSize: "0.9rem" }}>
+                                                        ({food.servingSize})
+                                                    </span>
+                                                    {food.hallName && (
+                                                        <span style={{ color: "#999", marginLeft: "0.5rem", fontSize: "0.8rem", fontStyle: "italic" }}>
+                                                            - {food.hallName}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div style={{ fontSize: "0.85rem", color: "#888" }}>
+                                                    {food.calories} cal
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
+                                )
+                            })}
 
                             <div
                                 style={{
@@ -260,9 +330,10 @@ export default function MealPlans({ authSession }: Props) {
                                     padding: "1rem",
                                     borderRadius: "4px",
                                     borderLeft: "4px solid #2196F3",
+                                    marginTop: "1rem"
                                 }}
                             >
-                                <h4 style={{ margin: "0 0 0.5rem 0", color: "#1976D2" }}>Total Nutrition:</h4>
+                                <h4 style={{ margin: "0 0 0.5rem 0", color: "#1976D2" }}>Daily Total:</h4>
                                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem" }}>
                                     <div>
                                         <div style={{ fontSize: "0.85rem", color: "#666" }}>Calories</div>

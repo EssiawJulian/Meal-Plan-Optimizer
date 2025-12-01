@@ -16,7 +16,17 @@ puppeteer.use(StealthPlugin());
     // Set a realistic viewport
     await page.setViewport({ width: 1920, height: 1080 });
 
-    const url = 'https://www.dining.vt.edu/MenuAtLocation.aspx?locationNum=15&naFlag=1';
+    // Set User Agent
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+    // Set Extra Headers
+    await page.setExtraHTTPHeaders({
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Referer': 'https://www.dining.vt.edu/'
+    });
+
+    const url = 'https://foodpro.students.vt.edu/menus/MenuAtLocation.aspx?locationNum=15&naFlag=1';
     console.log(`Navigating to ${url}...`);
 
     try {

@@ -1035,14 +1035,12 @@ app.put("/api/user/goals", async (req, res) => {
 const genAI = new GoogleGenAI({});
 
 // POST /api/meal-plans/generate
-// body: { sessionId, mealType, date? }
+// body: { sessionId, hallIds }
 app.post("/api/meal-plans/generate", async (req, res) => {
   try {
-    const { sessionId, mealType, date } = req.body || {};
-    if (!sessionId || !mealType) {
-      return res
-        .status(400)
-        .json({ error: "sessionId and mealType are required" });
+    const { sessionId, hallIds } = req.body || {};
+    if (!sessionId) {
+      return res.status(400).json({ error: "sessionId is required" });
     }
 
     const connection = await mysql.createConnection(config);
@@ -1060,7 +1058,7 @@ app.post("/api/meal-plans/generate", async (req, res) => {
 
     const userId = sessions[0].UserID;
 
-    // Get user's nutrition goals
+    // Get user goals
     const [goals] = await connection.execute(
       "SELECT Calories, Fat, Protein, Carbs FROM UserGoals WHERE UserID = ?",
       [userId]
@@ -1075,68 +1073,74 @@ app.post("/api/meal-plans/generate", async (req, res) => {
 
     const userGoals = goals[0];
 
-    // Get all available foods from dining halls
-    const [foods] = await connection.execute(`
+    // Get available foods (filter by hallIds if provided)
+    let foodsQuery = `
       SELECT fc.FoodID, fc.FoodName, fc.Calories, fc.Fat, fc.Protein, fc.Carbs,
              fc.ServingSize, dh.HallName
       FROM FoodCatalogue fc
       LEFT JOIN DinningHalls dh ON fc.HallID = dh.HallID
-      ORDER BY fc.FoodID
-    `);
+    `;
+    const queryParams = [];
+
+    if (hallIds && Array.isArray(hallIds) && hallIds.length > 0) {
+      // Create placeholders for IN clause
+      const placeholders = hallIds.map(() => '?').join(',');
+      foodsQuery += ` WHERE fc.HallID IN (${placeholders})`;
+      queryParams.push(...hallIds);
+    }
+
+    foodsQuery += ` ORDER BY fc.FoodID`;
+
+    const [foods] = await connection.execute(foodsQuery, queryParams);
 
     if (foods.length === 0) {
       await connection.end();
-      return res
-        .status(400)
-        .json({ error: "No foods available in the system" });
+      return res.status(400).json({ error: "No foods available in the selected dining halls" });
     }
 
     // Format foods for Gemini prompt
     const foodsList = foods
       .map(
         (f) =>
-          `ID:${f.FoodID} "${f.FoodName}" (${f.Calories}cal, ${f.Protein
-          }g protein, ${f.Carbs}g carbs, ${f.Fat}g fat, Serving: ${f.ServingSize
-          }) [${f.HallName || "N/A"}]`
+          `ID:${f.FoodID} "${f.FoodName}" (${f.Calories}cal, ${f.Protein}g P, ${f.Carbs}g C, ${f.Fat}g F) [${f.HallName}]`
       )
       .join("\n");
 
     // Create prompt for Gemini
-    const prompt = `You are a nutritionist AI assistant. Generate a healthy meal plan for ${mealType}.
+    const prompt = `You are a nutritionist AI. Generate a FULL DAY meal plan (Breakfast, Lunch, Dinner, Snack) for a student.
 
-User's Daily Nutrition Goals:
+User's Daily Goals:
 - Calories: ${userGoals.Calories}
 - Protein: ${userGoals.Protein}g
 - Carbs: ${userGoals.Carbs}g
 - Fat: ${userGoals.Fat}g
 
-For ${mealType}, aim for approximately:
-- ${mealType === "Breakfast"
-        ? "25%"
-        : mealType === "Lunch"
-          ? "35%"
-          : mealType === "Dinner"
-            ? "35%"
-            : "5%"
-      } of daily calories
-- Balanced macronutrients
-
-Available Foods (use ONLY these):
+Available Foods:
 ${foodsList}
 
-IMPORTANT: You MUST respond with ONLY valid JSON, no other text. Use this EXACT format:
-{
-  "foodIds": [1, 2, 3],
-  "totals": {
-    "calories": 500,
-    "protein": 25,
-    "carbs": 60,
-    "fat": 15
-  },
-  "reasoning": "Brief explanation of why these foods were chosen"
-}
+Instructions:
+1. Create a plan with 4 sections: Breakfast, Lunch, Dinner, Snack.
+2. Select foods ONLY from the provided list.
+3. Try to meet the daily goals as closely as possible (+/- 10%).
+4. You can select multiple items per meal.
+5. Return ONLY valid JSON.
 
-Select 2-4 food items by their ID that create a balanced, nutritious ${mealType}. Return ONLY the JSON response.`;
+JSON Format:
+{
+  "sections": {
+    "Breakfast": [foodID, foodID],
+    "Lunch": [foodID],
+    "Dinner": [foodID],
+    "Snack": [foodID]
+  },
+  "totals": {
+    "calories": 0,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 0
+  },
+  "reasoning": "Brief explanation"
+}`;
 
     // Call Gemini API
     const result = await genAI.models.generateContent({
@@ -1148,7 +1152,6 @@ Select 2-4 food items by their ID that create a balanced, nutritious ${mealType}
     // Parse JSON response
     let mealPlan;
     try {
-      // Remove markdown code blocks if present
       const cleanJson = responseText
         .replace(/```json\n?/g, "")
         .replace(/```\n?/g, "")
@@ -1162,15 +1165,16 @@ Select 2-4 food items by their ID that create a balanced, nutritious ${mealType}
       });
     }
 
-    // Validate that all food IDs exist
+    // Validate IDs
     const validFoodIds = foods.map((f) => f.FoodID);
+    const allSelectedIds = [
+      ...(mealPlan.sections.Breakfast || []),
+      ...(mealPlan.sections.Lunch || []),
+      ...(mealPlan.sections.Dinner || []),
+      ...(mealPlan.sections.Snack || [])
+    ];
 
-    // Deduplicate food IDs
-    mealPlan.foodIds = [...new Set(mealPlan.foodIds)];
-
-    const invalidIds = mealPlan.foodIds.filter(
-      (id) => !validFoodIds.includes(id)
-    );
+    const invalidIds = allSelectedIds.filter(id => !validFoodIds.includes(id));
 
     if (invalidIds.length > 0) {
       await connection.end();
@@ -1180,25 +1184,33 @@ Select 2-4 food items by their ID that create a balanced, nutritious ${mealType}
       });
     }
 
-    // 1. Create the Meal Plan
+    // 1. Create the Meal Plan Header
     const [planResult] = await connection.execute(
       "INSERT INTO MealPlans (UserID, MealType) VALUES (?, ?)",
-      [userId, mealType]
+      [userId, 'Full Day']
     );
     const newPlanId = planResult.insertId;
 
-    // 2. Insert Meal Plan Items
-    for (const foodId of mealPlan.foodIds) {
-      await connection.execute(
-        "INSERT INTO MealPlanItems (PlanID, FoodID) VALUES (?, ?)",
-        [newPlanId, foodId]
-      );
-    }
+    // 2. Insert Meal Plan Items with Types
+    const insertItem = async (ids, type) => {
+      if (!ids || ids.length === 0) return;
+      for (const foodId of ids) {
+        await connection.execute(
+          "INSERT INTO MealPlanItems (PlanID, FoodID, MealType) VALUES (?, ?, ?)",
+          [newPlanId, foodId, type]
+        );
+      }
+    };
+
+    await insertItem(mealPlan.sections.Breakfast, 'Breakfast');
+    await insertItem(mealPlan.sections.Lunch, 'Lunch');
+    await insertItem(mealPlan.sections.Dinner, 'Dinner');
+    await insertItem(mealPlan.sections.Snack, 'Snack');
 
     // Fetch the created meal with food details
     const [createdMeal] = await connection.execute(
       `
-      SELECT mp.PlanID as MealID, mp.MealType,
+      SELECT mp.PlanID as MealID, mp.MealType as PlanType, mpi.MealType as SectionType,
              fc.FoodID, fc.FoodName, fc.Calories, fc.Fat, fc.Protein, fc.Carbs, fc.ServingSize,
              dh.HallName
       FROM MealPlans mp
@@ -1214,7 +1226,7 @@ Select 2-4 food items by their ID that create a balanced, nutritious ${mealType}
 
     res.status(201).json({
       mealId: newPlanId,
-      mealType: mealType,
+      mealType: 'Full Day',
       foods: createdMeal,
       totals: mealPlan.totals,
       reasoning: mealPlan.reasoning,
@@ -1223,8 +1235,6 @@ Select 2-4 food items by their ID that create a balanced, nutritious ${mealType}
     res.status(500).json({ error: error.message });
   }
 });
-
-
 
 // GET /api/meal-plans
 // Get all meal plans for the user
@@ -1253,7 +1263,7 @@ app.get("/api/meal-plans", async (req, res) => {
     // Fetch meal plans with their items
     const [rows] = await connection.execute(
       `
-      SELECT mp.PlanID as MealID, mp.MealType, mp.CreatedAt,
+      SELECT mp.PlanID as MealID, mp.MealType as PlanType, mpi.MealType as SectionType, mp.CreatedAt,
              fc.FoodID, fc.FoodName, fc.Calories, fc.Fat, fc.Protein, fc.Carbs, fc.ServingSize,
              dh.HallName
       FROM MealPlans mp
@@ -1274,7 +1284,7 @@ app.get("/api/meal-plans", async (req, res) => {
       if (!mealPlans[row.MealID]) {
         mealPlans[row.MealID] = {
           mealId: row.MealID,
-          mealType: row.MealType,
+          mealType: row.PlanType,
           date: row.CreatedAt,
           foods: [],
           totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
@@ -1288,7 +1298,8 @@ app.get("/api/meal-plans", async (req, res) => {
         carbs: row.Carbs,
         fat: row.Fat,
         servingSize: row.ServingSize,
-        hallName: row.HallName
+        hallName: row.HallName,
+        sectionType: row.SectionType || 'Unspecified'
       });
       mealPlans[row.MealID].totals.calories += row.Calories;
       mealPlans[row.MealID].totals.protein += row.Protein;
@@ -1302,7 +1313,7 @@ app.get("/api/meal-plans", async (req, res) => {
   }
 });
 
-// DELETE /api/meal-plans/:mealId?sessionId=xxx
+// DELETE /api/meal-plans/:mealId
 // Delete a meal plan
 app.delete("/api/meal-plans/:mealId", async (req, res) => {
   try {
