@@ -1164,6 +1164,10 @@ Select 2-4 food items by their ID that create a balanced, nutritious ${mealType}
 
     // Validate that all food IDs exist
     const validFoodIds = foods.map((f) => f.FoodID);
+
+    // Deduplicate food IDs
+    mealPlan.foodIds = [...new Set(mealPlan.foodIds)];
+
     const invalidIds = mealPlan.foodIds.filter(
       (id) => !validFoodIds.includes(id)
     );
@@ -1176,38 +1180,40 @@ Select 2-4 food items by their ID that create a balanced, nutritious ${mealType}
       });
     }
 
-    // Get the next MealID (group ID)
-    const [maxMealId] = await connection.execute(
-      "SELECT COALESCE(MAX(MealID), 0) + 1 as NextMealID FROM Meals"
+    // 1. Create the Meal Plan
+    const [planResult] = await connection.execute(
+      "INSERT INTO MealPlans (UserID, MealType) VALUES (?, ?)",
+      [userId, mealType]
     );
-    const newMealId = maxMealId[0].NextMealID;
+    const newPlanId = planResult.insertId;
 
-    // Insert meal records for each food
+    // 2. Insert Meal Plan Items
     for (const foodId of mealPlan.foodIds) {
       await connection.execute(
-        "INSERT INTO Meals (MealID, FoodID, UserID, MealType) VALUES (?, ?, ?, ?)",
-        [newMealId, foodId, userId, mealType]
+        "INSERT INTO MealPlanItems (PlanID, FoodID) VALUES (?, ?)",
+        [newPlanId, foodId]
       );
     }
 
     // Fetch the created meal with food details
     const [createdMeal] = await connection.execute(
       `
-      SELECT m.MealID, m.MealType,
+      SELECT mp.PlanID as MealID, mp.MealType,
              fc.FoodID, fc.FoodName, fc.Calories, fc.Fat, fc.Protein, fc.Carbs, fc.ServingSize,
              dh.HallName
-      FROM Meals m
-      JOIN FoodCatalogue fc ON m.FoodID = fc.FoodID
+      FROM MealPlans mp
+      JOIN MealPlanItems mpi ON mp.PlanID = mpi.PlanID
+      JOIN FoodCatalogue fc ON mpi.FoodID = fc.FoodID
       LEFT JOIN DinningHalls dh ON fc.HallID = dh.HallID
-      WHERE m.MealID = ? AND m.UserID = ?
+      WHERE mp.PlanID = ?
     `,
-      [newMealId, userId]
+      [newPlanId]
     );
 
     await connection.end();
 
     res.status(201).json({
-      mealId: newMealId,
+      mealId: newPlanId,
       mealType: mealType,
       foods: createdMeal,
       totals: mealPlan.totals,
@@ -1218,127 +1224,13 @@ Select 2-4 food items by their ID that create a balanced, nutritious ${mealType}
   }
 });
 
-/* ==========================
-   MEALS / LOGGING
-   ========================== */
 
-// POST /api/meals
-app.post("/api/meals", async (req, res) => {
-  try {
-    const { sessionId, foodId, mealType } = req.body || {};
-    if (!sessionId || !foodId) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
 
-    const connection = await mysql.createConnection(config);
-
-    // Verify session
-    const [sessions] = await connection.execute(
-      "SELECT UserID FROM UserSessions WHERE SessionID = ?",
-      [sessionId]
-    );
-
-    if (sessions.length === 0) {
-      await connection.end();
-      return res.status(401).json({ error: "Invalid session" });
-    }
-
-    const userId = sessions[0].UserID;
-    const type = mealType || "Snack"; // Default to Snack if not provided
-
-    await connection.execute(
-      "INSERT INTO Meals (FoodID, UserID, MealType, LogDate) VALUES (?, ?, ?, CURRENT_DATE)",
-      [foodId, userId, type]
-    );
-
-    await connection.end();
-    res.status(201).json({ message: "Meal logged successfully" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// GET /api/meal-plans?sessionId=xxx
-// Get all meal plans for the authenticated user
+// GET /api/meal-plans
+// Get all meal plans for the user
 app.get("/api/meal-plans", async (req, res) => {
   try {
     const { sessionId } = req.query;
-    if (!sessionId) {
-      return res.status(400).json({ error: "sessionId is required" });
-    }
-
-    const connection = await mysql.createConnection(config);
-
-    // Verify session
-    const [sessions] = await connection.execute(
-      "SELECT UserID FROM UserSessions WHERE SessionID = ?",
-      [sessionId]
-    );
-
-    if (sessions.length === 0) {
-      await connection.end();
-      return res.status(401).json({ error: "Invalid session" });
-    }
-
-    const userId = sessions[0].UserID;
-
-    // Get all meals for user
-    const [meals] = await connection.execute(
-      `
-      SELECT m.MealID, m.MealType,
-             fc.FoodID, fc.FoodName, fc.Calories, fc.Fat, fc.Protein, fc.Carbs, fc.ServingSize,
-             dh.HallName
-      FROM Meals m
-      JOIN FoodCatalogue fc ON m.FoodID = fc.FoodID
-      LEFT JOIN DinningHalls dh ON fc.HallID = dh.HallID
-      WHERE m.UserID = ?
-      ORDER BY m.MealID DESC, fc.FoodName ASC
-    `,
-      [userId]
-    );
-
-    // Group meals by MealID
-    const groupedMeals = meals.reduce((acc, meal) => {
-      if (!acc[meal.MealID]) {
-        acc[meal.MealID] = {
-          mealId: meal.MealID,
-          mealType: meal.MealType,
-          foods: [],
-          totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
-        };
-      }
-
-      acc[meal.MealID].foods.push({
-        foodId: meal.FoodID,
-        foodName: meal.FoodName,
-        calories: meal.Calories,
-        protein: meal.Protein,
-        carbs: meal.Carbs,
-        fat: meal.Fat,
-        servingSize: meal.ServingSize,
-        hallName: meal.HallName,
-      });
-
-      // Update totals
-      acc[meal.MealID].totals.calories += meal.Calories;
-      acc[meal.MealID].totals.protein += meal.Protein;
-      acc[meal.MealID].totals.carbs += meal.Carbs;
-      acc[meal.MealID].totals.fat += meal.Fat;
-
-      return acc;
-    }, {});
-
-    await connection.end();
-    res.json(Object.values(groupedMeals));
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// GET /api/meals
-app.get("/api/meals", async (req, res) => {
-  try {
-    const { sessionId, date } = req.query;
     if (!sessionId) {
       return res.status(400).json({ error: "Session ID required" });
     }
@@ -1358,27 +1250,53 @@ app.get("/api/meals", async (req, res) => {
 
     const userId = sessions[0].UserID;
 
-    // Determine date filter (default to today if not provided)
-    let dateFilter = "CURRENT_DATE";
-    const queryParams = [userId];
-
-    if (date) {
-      dateFilter = "?";
-      queryParams.push(date);
-    }
-
-    // Get meals with nutrition info
+    // Fetch meal plans with their items
     const [rows] = await connection.execute(
-      `SELECT m.MealID, m.MealType, m.LogDate, 
-              fc.FoodName, fc.Calories, fc.Protein, fc.Carbs, fc.Fat, fc.ServingSize
-         FROM Meals m
-         JOIN FoodCatalogue fc ON m.FoodID = fc.FoodID
-        WHERE m.UserID = ? AND m.LogDate = ${dateFilter}`,
-      queryParams
+      `
+      SELECT mp.PlanID as MealID, mp.MealType, mp.CreatedAt,
+             fc.FoodID, fc.FoodName, fc.Calories, fc.Fat, fc.Protein, fc.Carbs, fc.ServingSize,
+             dh.HallName
+      FROM MealPlans mp
+      JOIN MealPlanItems mpi ON mp.PlanID = mpi.PlanID
+      JOIN FoodCatalogue fc ON mpi.FoodID = fc.FoodID
+      LEFT JOIN DinningHalls dh ON fc.HallID = dh.HallID
+      WHERE mp.UserID = ?
+      ORDER BY mp.CreatedAt DESC
+    `,
+      [userId]
     );
 
     await connection.end();
-    res.json(rows);
+
+    // Group by MealID (PlanID)
+    const mealPlans = {};
+    rows.forEach((row) => {
+      if (!mealPlans[row.MealID]) {
+        mealPlans[row.MealID] = {
+          mealId: row.MealID,
+          mealType: row.MealType,
+          date: row.CreatedAt,
+          foods: [],
+          totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+        };
+      }
+      mealPlans[row.MealID].foods.push({
+        foodId: row.FoodID,
+        foodName: row.FoodName,
+        calories: row.Calories,
+        protein: row.Protein,
+        carbs: row.Carbs,
+        fat: row.Fat,
+        servingSize: row.ServingSize,
+        hallName: row.HallName
+      });
+      mealPlans[row.MealID].totals.calories += row.Calories;
+      mealPlans[row.MealID].totals.protein += row.Protein;
+      mealPlans[row.MealID].totals.carbs += row.Carbs;
+      mealPlans[row.MealID].totals.fat += row.Fat;
+    });
+
+    res.json(Object.values(mealPlans));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1410,9 +1328,9 @@ app.delete("/api/meal-plans/:mealId", async (req, res) => {
 
     const userId = sessions[0].UserID;
 
-    // Delete all foods in this meal (verify it belongs to user)
+    // Delete the meal plan (Cascade will delete items)
     const [result] = await connection.execute(
-      "DELETE FROM Meals WHERE MealID = ? AND UserID = ?",
+      "DELETE FROM MealPlans WHERE PlanID = ? AND UserID = ?",
       [mealId, userId]
     );
 
@@ -1428,10 +1346,99 @@ app.delete("/api/meal-plans/:mealId", async (req, res) => {
   }
 });
 
-// PUT /api/meals/:mealId
+/* ==========================
+   MEALS / LOGGING (Manual)
+   ========================== */
+
+// POST /api/meals
+app.post("/api/meals", async (req, res) => {
+  try {
+    const { sessionId, foodId, mealType } = req.body || {};
+    if (!sessionId || !foodId) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const connection = await mysql.createConnection(config);
+
+    // Verify session
+    const [sessions] = await connection.execute(
+      "SELECT UserID FROM UserSessions WHERE SessionID = ?",
+      [sessionId]
+    );
+
+    if (sessions.length === 0) {
+      await connection.end();
+      return res.status(401).json({ error: "Invalid session" });
+    }
+
+    const userId = sessions[0].UserID;
+    const type = mealType || "Snack"; // Default to Snack if not provided
+
+    // Insert into FoodLogs
+    await connection.execute(
+      "INSERT INTO FoodLogs (FoodID, UserID, MealType, LogDate) VALUES (?, ?, ?, CURRENT_DATE)",
+      [foodId, userId, type]
+    );
+
+    await connection.end();
+
+    res.status(201).json({ message: "Meal logged successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/meals (Daily Log)
+app.get("/api/meals", async (req, res) => {
+  try {
+    const { sessionId, date } = req.query;
+    if (!sessionId) {
+      return res.status(400).json({ error: "Session ID required" });
+    }
+
+    const connection = await mysql.createConnection(config);
+
+    // Verify session
+    const [sessions] = await connection.execute(
+      "SELECT UserID FROM UserSessions WHERE SessionID = ?",
+      [sessionId]
+    );
+
+    if (sessions.length === 0) {
+      await connection.end();
+      return res.status(401).json({ error: "Invalid session" });
+    }
+
+    const userId = sessions[0].UserID;
+    const queryDate = date || new Date().toISOString().split("T")[0]; // Default to today
+
+    // Fetch logs for the date
+    // Alias LogID as MealID for frontend compatibility
+    const [rows] = await connection.execute(
+      `
+      SELECT fl.LogID as MealID, fl.MealType, fl.LogDate,
+             fc.FoodID, fc.FoodName, fc.Calories, fc.Fat, fc.Protein, fc.Carbs, fc.ServingSize,
+             dh.HallName
+      FROM FoodLogs fl
+      JOIN FoodCatalogue fc ON fl.FoodID = fc.FoodID
+      LEFT JOIN DinningHalls dh ON fc.HallID = dh.HallID
+      WHERE fl.UserID = ? AND fl.LogDate = ?
+      ORDER BY fl.LogID DESC
+    `,
+      [userId, queryDate]
+    );
+
+    await connection.end();
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/meals/:mealId (Update Log Entry)
 app.put("/api/meals/:mealId", async (req, res) => {
   try {
-    const { mealId } = req.params;
+    const { mealId } = req.params; // This is LogID
     const { mealType } = req.body;
 
     if (!mealType) {
@@ -1440,7 +1447,7 @@ app.put("/api/meals/:mealId", async (req, res) => {
 
     const connection = await mysql.createConnection(config);
     await connection.execute(
-      "UPDATE Meals SET MealType = ? WHERE MealID = ?",
+      "UPDATE FoodLogs SET MealType = ? WHERE LogID = ?",
       [mealType, mealId]
     );
     await connection.end();
@@ -1450,12 +1457,12 @@ app.put("/api/meals/:mealId", async (req, res) => {
   }
 });
 
-// DELETE /api/meals/:mealId
+// DELETE /api/meals/:mealId (Delete Log Entry)
 app.delete("/api/meals/:mealId", async (req, res) => {
   try {
-    const { mealId } = req.params;
+    const { mealId } = req.params; // This is LogID
     const connection = await mysql.createConnection(config);
-    await connection.execute("DELETE FROM Meals WHERE MealID = ?", [mealId]);
+    await connection.execute("DELETE FROM FoodLogs WHERE LogID = ?", [mealId]);
     await connection.end();
     res.status(204).end();
   } catch (error) {
