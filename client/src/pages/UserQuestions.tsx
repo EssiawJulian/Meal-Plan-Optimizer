@@ -191,7 +191,7 @@ const UserQuestions = ({ user }: UserQuestionsProps) => {
                   </p>
                 </div>
 
-                {question.MessageStatus && question.MessageReply && (
+                {question.MessageStatus && question.MessageReply ? (
                   <div style={{
                     backgroundColor: '#e7f3ff',
                     padding: '15px',
@@ -203,6 +203,18 @@ const UserQuestions = ({ user }: UserQuestionsProps) => {
                     </strong>
                     <p style={{ margin: '8px 0 0 0', fontSize: '15px', lineHeight: '1.5', color: '#004085' }}>
                       {question.MessageReply}
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{
+                    backgroundColor: '#fff9e6',
+                    padding: '15px',
+                    borderRadius: '6px',
+                    border: '1px solid #ffe066',
+                    textAlign: 'center'
+                  }}>
+                    <p style={{ margin: 0, fontSize: '14px', color: '#856404', fontStyle: 'italic' }}>
+                      Waiting for nutritionist's reply...
                     </p>
                   </div>
                 )}
