@@ -20,7 +20,7 @@ export default function AdminDashboard({ user, onLogout }: Props) {
     setLoading(true)
     setError(null)
     try {
-      const data = await listFoods({ limit: 200 })
+      const data = await listFoods({ limit: 10000 })
       setItems(data)
     } catch (err: any) {
       setError(err?.message ?? "Failed to load foods")
